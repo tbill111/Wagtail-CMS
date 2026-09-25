@@ -88,6 +88,7 @@ class SuggestReplyApiTests(BaseViewTest):
         response = self.post_json(self.suggest_url(), {"message": "Xin chào"})
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()["mock"])
+        self.assertEqual(response.json()["provider"], "AI Gemini")
         self.assertIn("Hoàng Minh Đức", response.json()["reply"])
 
     def test_returns_400_for_invalid_input(self):

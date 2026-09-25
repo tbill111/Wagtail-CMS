@@ -1,12 +1,18 @@
 """Dịch vụ AI của SmartCRM – bọc Google Gemini (SDK ``google-genai``).
 
-Mọi logic gọi Gemini nằm ở đây, views chỉ gọi các method công khai.
+AI chính là Gemini. Có thể cấu hình thêm một nhà cung cấp AI dự phòng theo chuẩn
+API tương thích OpenAI (Groq, OpenRouter, DeepSeek…), được dùng khi Gemini lỗi.
+Mọi logic gọi AI nằm ở đây, views chỉ gọi các method công khai.
 Để thêm tính năng AI mới: viết method mới dùng lại ``build_customer_context``
 và ``_generate`` (xem README – "Hướng dẫn mở rộng tính năng AI").
 """
 
+import json
 import logging
+import re
+import threading
 
+import httpx
 from django.conf import settings
 from django.utils import timezone
 
@@ -33,6 +39,8 @@ class GeminiCRMService:
     def __init__(self):
         self._client = None
         self._client_key = None
+        # Lưu nhà cung cấp đã trả lời lần gọi gần nhất, riêng cho từng luồng (request)
+        self._state = threading.local()
 
     # ------------------------------------------------------------------ cấu hình
     @property
@@ -44,9 +52,37 @@ class GeminiCRMService:
         return getattr(settings, "GEMINI_MODEL", "") or "gemini-3.8-flash"
 
     @property
+    def fallback_api_key(self):
+        return getattr(settings, "FALLBACK_AI_API_KEY", "") or ""
+
+    @property
+    def fallback_base_url(self):
+        return (getattr(settings, "FALLBACK_AI_BASE_URL", "") or "").rstrip("/")
+
+    @property
+    def fallback_provider_model(self):
+        return getattr(settings, "FALLBACK_AI_MODEL", "") or ""
+
+    @property
+    def fallback_provider_name(self):
+        return getattr(settings, "FALLBACK_AI_NAME", "") or "AI dự phòng"
+
+    @property
+    def has_fallback_provider(self):
+        """Đã cấu hình đủ nhà cung cấp dự phòng (tương thích OpenAI) hay chưa."""
+        return bool(self.fallback_api_key and self.fallback_base_url and self.fallback_provider_model)
+
+    @property
     def is_mock(self):
-        """Chế độ mô phỏng: không có API key hoặc AI_MOCK=True."""
-        return bool(getattr(settings, "AI_MOCK", False)) or not self.api_key
+        """Chế độ mô phỏng: AI_MOCK=True, hoặc không có key Gemini lẫn key AI dự phòng."""
+        if getattr(settings, "AI_MOCK", False):
+            return True
+        return not self.api_key and not self.has_fallback_provider
+
+    @property
+    def last_provider_label(self):
+        """Tên AI đã trả lời lần gọi gần nhất trong luồng hiện tại (hiển thị trên giao diện)."""
+        return getattr(self._state, "provider", "AI Gemini")
 
     @property
     def client(self):
@@ -114,10 +150,37 @@ class GeminiCRMService:
         return any(k in raw for k in ("503", "unavailable", "overloaded", "high demand", "500", "internal"))
 
     def _generate(self, prompt, *, json_schema=None):
-        """Gọi Gemini và trả về văn bản. Mọi lỗi được chuyển thành ``AIServiceError``.
+        """Gọi AI và trả về văn bản. Mọi lỗi được chuyển thành ``AIServiceError``.
 
-        Nếu model chính quá tải (503) sẽ tự thử lại một lần với ``GEMINI_FALLBACK_MODEL``.
+        Thứ tự thử: Gemini (model chính, rồi ``GEMINI_FALLBACK_MODEL`` khi quá tải),
+        sau đó nhà cung cấp dự phòng tương thích OpenAI (nếu đã cấu hình ``FALLBACK_AI_*``).
         """
+        gemini_error = None
+        if self.api_key:
+            try:
+                text = self._generate_gemini(prompt, json_schema=json_schema)
+                self._state.provider = "AI Gemini"
+                return text
+            except AIServiceError as exc:
+                if not self.has_fallback_provider:
+                    raise
+                gemini_error = exc
+                logger.warning("Gemini lỗi, chuyển sang %s", self.fallback_provider_name)
+
+        try:
+            text = self._generate_openai_compatible(prompt, json_schema=json_schema)
+        except AIServiceError as exc:
+            if gemini_error is not None:
+                raise AIServiceError(
+                    "Cả Gemini và AI dự phòng đều đang lỗi. "
+                    f"Gemini: {gemini_error} | {self.fallback_provider_name}: {exc}"
+                ) from exc
+            raise
+        self._state.provider = self.fallback_provider_name
+        return text
+
+    def _generate_gemini(self, prompt, *, json_schema=None):
+        """Gọi Gemini; nếu model chính quá tải (503) thì thử lại với ``GEMINI_FALLBACK_MODEL``."""
         from google.genai import types
 
         config_kwargs = {
@@ -155,6 +218,57 @@ class GeminiCRMService:
                 raise AIServiceError("AI không trả về nội dung. Vui lòng thử lại.")
             return text
 
+    def _generate_openai_compatible(self, prompt, *, json_schema=None):
+        """Gọi nhà cung cấp dự phòng theo chuẩn OpenAI Chat Completions (Groq, OpenRouter, DeepSeek…)."""
+        name = self.fallback_provider_name
+        content = prompt
+        payload = {"model": self.fallback_provider_model, "temperature": 0.7}
+        if json_schema is not None:
+            payload["response_format"] = {"type": "json_object"}
+            content = (
+                f"{prompt}\n\nChỉ trả về một đối tượng JSON hợp lệ theo schema sau:\n"
+                f"{json.dumps(json_schema, ensure_ascii=False)}"
+            )
+        payload["messages"] = [{"role": "user", "content": content}]
+        try:
+            response = httpx.post(
+                f"{self.fallback_base_url}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {self.fallback_api_key}",
+                    "X-Title": "SmartCRM",  # OpenRouter dùng để hiển thị tên ứng dụng
+                },
+                json=payload,
+                timeout=60,
+            )
+            response.raise_for_status()
+            text = response.json()["choices"][0]["message"]["content"] or ""
+        except httpx.HTTPStatusError as exc:
+            status = exc.response.status_code
+            logger.error("Gọi %s thất bại (model=%s): HTTP %s", name, self.fallback_provider_model, status)
+            raise AIServiceError(self._friendly_fallback_message(status)) from exc
+        except Exception as exc:  # noqa: BLE001 – lỗi mạng, JSON sai định dạng…
+            logger.error("Gọi %s thất bại (model=%s): %s", name, self.fallback_provider_model, type(exc).__name__)
+            raise AIServiceError(f"Không kết nối được {name}. Vui lòng thử lại sau.") from exc
+
+        # Một số model suy luận (ví dụ DeepSeek R1) trả kèm phần <think>…</think>
+        text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+        if not text:
+            logger.warning("%s trả về nội dung rỗng (model=%s)", name, self.fallback_provider_model)
+            raise AIServiceError("AI không trả về nội dung. Vui lòng thử lại.")
+        return text
+
+    def _friendly_fallback_message(self, status):
+        name = self.fallback_provider_name
+        if status in (401, 403):
+            return f"API key của {name} không hợp lệ. Vui lòng kiểm tra FALLBACK_AI_API_KEY."
+        if status == 402:
+            return f"Tài khoản {name} đã hết số dư. Vui lòng nạp thêm hoặc dùng nhà cung cấp miễn phí khác."
+        if status == 429:
+            return f"Đã hết hạn mức (quota) gọi {name}. Vui lòng thử lại sau."
+        if status in (400, 404):
+            return f"Model của {name} không tồn tại hoặc không hợp lệ. Vui lòng kiểm tra FALLBACK_AI_MODEL."
+        return f"{name} đang quá tải hoặc gặp sự cố. Vui lòng thử lại sau."
+
     @staticmethod
     def _friendly_message(exc):
         raw = str(exc).lower()
@@ -176,6 +290,7 @@ class GeminiCRMService:
         message = (message or "").strip()
 
         if self.is_mock:
+            self._state.provider = "AI Gemini"
             return self._mock_reply(customer, message, tone)
 
         prompt = f"""Bạn là nhân viên chăm sóc khách hàng của doanh nghiệp đang dùng hệ thống SmartCRM.

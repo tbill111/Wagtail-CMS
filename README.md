@@ -48,7 +48,7 @@ flowchart LR
 | 02 | Model tùy chỉnh lưu khách hàng, đơn hàng | ✅ | `crm/models.py` (Customer, Order, OrderItem, InteractionLog), `crm/wagtail_hooks.py` (SnippetViewSet, nhóm menu "CRM", menu "Mở SmartCRM"), `crm/migrations/` |
 | 03 | Tích hợp API AI – gợi ý phản hồi email | ✅ | `crm/services/ai_service.py` (`GeminiCRMService`, `AIServiceError`, `get_ai_service`) |
 | 04 | Giao diện Frontend tương tác với AI | ✅ | `crm/views.py`, `crm/urls.py`, `crm/templates/crm/*.html`, `crm/static/crm/js/ai.js`, `crm/static/crm/css/smartcrm.css`, `home/templates/home/home_page.html` |
-| 05 | Kiểm thử luồng & tài liệu triển khai | ✅ | `crm/tests/` (34 unit test), `crm/management/commands/seed_demo.py`, `docs/TEST_CASES.md`, `docs/screenshots/`, `README.md` |
+| 05 | Kiểm thử luồng & tài liệu triển khai | ✅ | `crm/tests/` (40 unit test), `crm/management/commands/seed_demo.py`, `docs/TEST_CASES.md`, `docs/screenshots/`, `README.md` |
 
 ## 3. Yêu cầu hệ thống
 
@@ -125,6 +125,10 @@ Các biến trong `.env`:
 | `GEMINI_MODEL` | Tên model | `gemini-3.8-flash` |
 | `GEMINI_FALLBACK_MODEL` | Model dự phòng, tự dùng khi model chính quá tải (503). Để trống để tắt | `gemini-flash-latest` |
 | `AI_MOCK` | `True` thì luôn dùng kết quả giả lập | `False` |
+| `FALLBACK_AI_API_KEY` | *(Tuỳ chọn)* key của AI dự phòng (Groq / OpenRouter / DeepSeek…), dùng khi Gemini lỗi. Để trống để tắt | *(trống)* |
+| `FALLBACK_AI_BASE_URL` | Địa chỉ API tương thích OpenAI của AI dự phòng | *(trống)* |
+| `FALLBACK_AI_MODEL` | Tên model của AI dự phòng | *(trống)* |
+| `FALLBACK_AI_NAME` | Tên hiển thị trên giao diện, ví dụ "Groq Llama 3.3" | `AI dự phòng` |
 | `DJANGO_SECRET_KEY` | Khoá bí mật Django (bắt buộc khi chạy production) | khoá dev |
 | `DEBUG` | Chế độ debug | `True` |
 
@@ -140,7 +144,7 @@ Nếu tạo superuser **trước** khi seed, khách mẫu sẽ được gán cho
 | <http://127.0.0.1:8000/crm/> | Tổng quan: 4 thẻ số liệu + 5 tương tác mới nhất |
 | <http://127.0.0.1:8000/crm/customers/> | Danh sách khách: tìm theo tên/email/SĐT, lọc trạng thái, 10 khách/trang |
 | `/crm/customers/<id>/` | Chi tiết khách + khối **✨ Gợi ý phản hồi AI** + timeline |
-| `POST /crm/api/customers/<id>/suggest-reply/` | Vào `{message, tone}`, ra `{ok, reply, mock}` |
+| `POST /crm/api/customers/<id>/suggest-reply/` | Vào `{message, tone}`, ra `{ok, reply, mock, provider}` (`provider` = tên AI đã trả lời) |
 | `POST /crm/api/customers/<id>/save-interaction/` | Vào `{message, ai_suggested_reply, final_reply, channel}`, ra `{ok, id, interaction_html}` |
 
 Trang `/crm/` yêu cầu đăng nhập bằng tài khoản **staff**. Mã lỗi của API: `400` dữ liệu sai, `401` chưa đăng nhập,
@@ -286,15 +290,49 @@ Toàn bộ kịch bản kèm cột kết quả thực tế có trong [docs/TEST_
 4. Mở lại trang chi tiết khách. Nhãn "(chế độ mô phỏng)" biến mất, và nội dung email do Gemini soạn dựa trên đơn hàng và lịch sử của chính khách đó.
 5. Khi demo mà mạng yếu hoặc hết quota, đặt `AI_MOCK=True` rồi khởi động lại server để quay về chế độ mô phỏng.
 
+### 6.7. Dùng AI dự phòng khi Gemini lỗi (Groq, OpenRouter, DeepSeek…)
+
+Gemini thỉnh thoảng báo **503 quá tải** hoặc hết quota. Để web vẫn trả lời được, SmartCRM hỗ trợ một **nhà cung cấp AI dự phòng**
+theo chuẩn API tương thích OpenAI. Gemini vẫn là AI chính; AI dự phòng **chỉ được gọi khi Gemini lỗi**.
+
+Thứ tự hệ thống tự thử:
+
+```
+GEMINI_MODEL  ──503──▶  GEMINI_FALLBACK_MODEL  ──lỗi──▶  FALLBACK_AI_* (Groq/OpenRouter/DeepSeek)  ──lỗi──▶  thông báo lỗi
+```
+
+Nếu **không có** `GEMINI_API_KEY` nhưng có `FALLBACK_AI_API_KEY`, hệ thống dùng thẳng AI dự phòng.
+Nhãn trên kết quả cho biết AI nào đã trả lời, ví dụ "Gợi ý bởi AI Gemini" hoặc "Gợi ý bởi Groq Llama 3.3".
+
+| Nhà cung cấp | Chi phí | Lấy key | `FALLBACK_AI_BASE_URL` | `FALLBACK_AI_MODEL` (ví dụ) |
+|---|---|---|---|---|
+| **Groq** (khuyên dùng) | Miễn phí, có giới hạn số lượt/phút, không cần thẻ | <https://console.groq.com/keys> | `https://api.groq.com/openai/v1` | `llama-3.3-70b-versatile` |
+| **OpenRouter** | Có nhiều model miễn phí (tên kết thúc bằng `:free`), kể cả một số model DeepSeek | <https://openrouter.ai/keys> | `https://openrouter.ai/api/v1` | chọn tại <https://openrouter.ai/models?max_price=0> |
+| **DeepSeek** | **Trả phí** theo lượt (rẻ), phải nạp tiền trước; hết tiền sẽ báo lỗi 402 | <https://platform.deepseek.com/api_keys> | `https://api.deepseek.com` | `deepseek-chat` |
+
+Danh sách model miễn phí và hạn mức do các nhà cung cấp tự thay đổi. Nếu báo "Model … không tồn tại", hãy vào trang của nhà cung cấp để chọn tên model hiện có.
+
+**Cách bật (ví dụ với Groq):**
+1. Đăng ký tại <https://console.groq.com>, vào **API Keys → Create API Key**, sao chép key.
+2. Mở `.env` và điền (các cấu hình mẫu đã có sẵn dưới dạng chú thích trong `.env.example`):
+   ```
+   FALLBACK_AI_API_KEY=<key_groq_của_bạn>
+   FALLBACK_AI_BASE_URL=https://api.groq.com/openai/v1
+   FALLBACK_AI_MODEL=llama-3.3-70b-versatile
+   FALLBACK_AI_NAME=Groq Llama 3.3
+   ```
+3. Khởi động lại server (`Ctrl + C`, rồi `python manage.py runserver`).
+4. Muốn thử AI dự phòng ngay mà không cần chờ Gemini lỗi: tạm xoá giá trị `GEMINI_API_KEY` trong `.env`, khởi động lại, rồi bấm **✨ Gợi ý phản hồi**. Nhãn kết quả sẽ hiện "Gợi ý bởi Groq Llama 3.3".
+
 ## 7. Chạy kiểm thử
 
 ```bash
 python manage.py test crm
 ```
 
-Kết quả hiện tại: **34 test – OK**. Mọi lời gọi Gemini đều được giả lập bằng `unittest.mock`, nên test **không gọi mạng** và không cần API key.
+Kết quả hiện tại: **40 test – OK**. Mọi lời gọi Gemini đều được giả lập bằng `unittest.mock`, nên test **không gọi mạng** và không cần API key.
 Nội dung kiểm thử: sinh mã đơn, `subtotal`, `total_amount`, `total_spent`; prompt chứa dữ liệu khách; exception → `AIServiceError`;
-chế độ MOCK; chưa đăng nhập bị chuyển hướng; API suggest-reply 200/400/404/405/503; save-interaction tạo bản ghi; tìm kiếm/lọc/phân trang.
+chế độ MOCK; chuyển sang model/nhà cung cấp AI dự phòng khi Gemini lỗi; chưa đăng nhập bị chuyển hướng; API suggest-reply 200/400/404/405/503; save-interaction tạo bản ghi; tìm kiếm/lọc/phân trang.
 
 Kịch bản kiểm thử thủ công end-to-end (thêm khách ở Admin → AI gợi ý → lưu → xem lại ở Admin) nằm trong [docs/TEST_CASES.md](docs/TEST_CASES.md).
 
@@ -318,7 +356,9 @@ mạng hoặc khi đã hết quota.
 | Toast "API key Gemini không hợp lệ…" | Sai key hoặc key bị thu hồi | Tạo key mới ở Google AI Studio, sửa `.env`, khởi động lại server |
 | Toast "Đã hết hạn mức (quota)…" | Vượt giới hạn miễn phí (lỗi 429) | Đợi vài phút hoặc đặt `AI_MOCK=True` để demo |
 | Toast "Không tìm thấy model Gemini…" | `GEMINI_MODEL` sai hoặc model đã bị gỡ. Ví dụ `gemini-1.5-*` đã bị gỡ, còn `gemini-2.5-flash` **không còn cấp cho API key mới** (lỗi 404 "no longer available to new users") | Đặt `GEMINI_MODEL=gemini-3.8-flash` (mặc định), hoặc `gemini-flash-latest` |
-| Toast "Máy chủ Gemini đang quá tải…" | Google báo 503 "high demand" cho cả model chính lẫn model dự phòng (lỗi tạm thời phía Google) | Bấm **✨ Gợi ý lại** sau vài giây; khi demo có thể đặt `AI_MOCK=True` |
+| Toast "Máy chủ Gemini đang quá tải…" | Google báo 503 "high demand" cho cả model chính lẫn model dự phòng (lỗi tạm thời phía Google) | Bấm **✨ Gợi ý lại** sau vài giây; cấu hình AI dự phòng (mục 6.7); hoặc đặt `AI_MOCK=True` khi demo |
+| Toast "Cả Gemini và AI dự phòng đều đang lỗi…" | Cả hai nhà cung cấp cùng lỗi; phần sau dấu `|` cho biết lý do của từng bên | Sửa theo lý do được báo (key sai, hết quota, hết số dư, sai tên model…) |
+| Toast "…đã hết số dư" | Tài khoản DeepSeek hết tiền (HTTP 402) | Nạp thêm hoặc chuyển sang Groq/OpenRouter miễn phí |
 | Toast "Phiên làm việc không hợp lệ (CSRF)…" / lỗi 403 | Cookie CSRF hết hạn, mở trang quá lâu, hoặc truy cập bằng domain khác | Tải lại trang (F5), đăng nhập lại; khi deploy hãy cấu hình `CSRF_TRUSTED_ORIGINS` |
 | Luôn hiện "(chế độ mô phỏng)" dù đã có key | Chưa khởi động lại server hoặc `AI_MOCK=True` | Kiểm tra `.env` rồi khởi động lại `runserver` |
 | Giao diện không có kiểu dáng | Máy không có Internet để tải Bootstrap/font từ CDN | Kết nối mạng |

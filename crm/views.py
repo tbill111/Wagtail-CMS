@@ -161,7 +161,9 @@ def api_suggest_reply(request, pk):
         reply = service.suggest_reply(customer, message, tone=tone)
     except AIServiceError as exc:
         return json_error(str(exc), 503)
-    return JsonResponse({"ok": True, "reply": reply, "mock": service.is_mock})
+    return JsonResponse(
+        {"ok": True, "reply": reply, "mock": service.is_mock, "provider": service.last_provider_label}
+    )
 
 
 @require_POST

@@ -25,6 +25,7 @@ Chế độ AI: chạy ở **chế độ mô phỏng** (không có `GEMINI_API_K
 | TC-12 | Tìm kiếm / lọc / phân trang | `/crm/customers/` lọc "Đã rời bỏ"; tìm theo SĐT `0901234567`; thêm >10 khách để xem phân trang | Kết quả đúng bộ lọc, phân trang 10/trang, giữ tham số lọc khi chuyển trang | Đạt |
 | TC-13 | AI lỗi (key sai) | Đặt `GEMINI_API_KEY=abc`, `AI_MOCK=False`, khởi động lại → gợi ý phản hồi | Toast đỏ tiếng Việt "API key Gemini không hợp lệ…", API trả 503, không lộ key | Đạt (kiểm bằng unit test giả lập lỗi) |
 | TC-14 | Responsive | Mở trang chi tiết ở độ rộng 375px (DevTools) | Bố cục 1 cột, khối AI nằm trên timeline, không tràn ngang | Đạt |
+| TC-15 | AI dự phòng | Điền `FALLBACK_AI_*` (ví dụ Groq), xoá `GEMINI_API_KEY`, khởi động lại → gợi ý phản hồi | Email được soạn, nhãn "Gợi ý bởi Groq Llama 3.3" | Chưa chạy với key thật (chưa có key Groq); đã kiểm bằng unit test |
 
 ## 2. Kiểm thử tự động
 
@@ -33,7 +34,7 @@ Chạy: `python manage.py test crm` — mọi lời gọi Gemini đều được
 | Nhóm | File | Nội dung chính |
 |---|---|---|
 | Model | `crm/tests/test_models.py` | Sinh mã đơn `DH-YYYYMMDD-0001` và tăng dần; `subtotal`; `total_amount`; `total_spent` chỉ tính đơn Hoàn thành; thứ tự tương tác |
-| AI service | `crm/tests/test_ai_service.py` | Prompt chứa dữ liệu khách/đơn/tin nhắn/giọng văn; model quá tải (503) tự chuyển sang model dự phòng; exception SDK → `AIServiceError` (không lộ key); phản hồi rỗng; `json_schema` → `application/json`; client lazy; chế độ MOCK |
+| AI service | `crm/tests/test_ai_service.py` | Prompt chứa dữ liệu khách/đơn/tin nhắn/giọng văn; model quá tải (503) tự chuyển sang model dự phòng; Gemini lỗi thì chuyển sang AI dự phòng tương thích OpenAI (Groq/OpenRouter/DeepSeek), xử lý lỗi 402/mạng, bỏ thẻ `<think>`; exception SDK → `AIServiceError` (không lộ key); phản hồi rỗng; `json_schema` → `application/json`; client lazy; chế độ MOCK |
 | Views/API | `crm/tests/test_views.py` | Chưa đăng nhập → chuyển hướng; user không phải staff bị chặn; API suggest-reply 200/400/404/405/503; mock end-to-end; save-interaction tạo bản ghi + trả HTML; tìm kiếm/lọc/phân trang |
 
-Kết quả lần chạy gần nhất: **34 test – OK** (xem README mục "Chạy kiểm thử").
+Kết quả lần chạy gần nhất: **40 test – OK** (xem README mục "Chạy kiểm thử").

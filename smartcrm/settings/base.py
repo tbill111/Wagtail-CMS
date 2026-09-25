@@ -208,6 +208,13 @@ GEMINI_MODEL = os.getenv("GEMINI_MODEL", "").strip() or "gemini-3.8-flash"
 GEMINI_FALLBACK_MODEL = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-flash-latest").strip()
 AI_MOCK = env_bool("AI_MOCK", default=False)
 
+# Nhà cung cấp AI dự phòng (chuẩn API tương thích OpenAI), dùng khi Gemini lỗi.
+# Để trống FALLBACK_AI_API_KEY để tắt. Xem .env.example: Groq / OpenRouter / DeepSeek.
+FALLBACK_AI_API_KEY = os.getenv("FALLBACK_AI_API_KEY", "").strip()
+FALLBACK_AI_BASE_URL = os.getenv("FALLBACK_AI_BASE_URL", "").strip()
+FALLBACK_AI_MODEL = os.getenv("FALLBACK_AI_MODEL", "").strip()
+FALLBACK_AI_NAME = os.getenv("FALLBACK_AI_NAME", "").strip() or "AI dự phòng"
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,

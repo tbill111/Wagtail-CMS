@@ -138,7 +138,8 @@
                 const data = await postJSON(card.dataset.suggestUrl, { message: message, tone: toneSelect.value });
                 lastAIReply = data.reply;
                 replyInput.value = data.reply;
-                resultLabel.textContent = "Gợi ý bởi AI Gemini" + (data.mock ? " (chế độ mô phỏng)" : "");
+                resultLabel.textContent = "Gợi ý bởi " + (data.provider || "AI Gemini") +
+                    (data.mock ? " (chế độ mô phỏng)" : "");
                 resultBox.classList.remove("d-none");
                 replyInput.focus();
                 showToast("AI đã soạn xong gợi ý. Bạn có thể chỉnh sửa trước khi lưu.", "success");

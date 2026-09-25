@@ -1,5 +1,7 @@
 from unittest import mock
 
+import httpx
+
 from django.test import TestCase, override_settings
 
 from crm.models import InteractionLog, Order
@@ -7,7 +9,12 @@ from crm.services.ai_service import AIServiceError, GeminiCRMService, get_ai_ser
 
 from .factories import make_customer, make_order
 
-LIVE = {"GEMINI_API_KEY": "test-key-khong-that", "AI_MOCK": False, "GEMINI_MODEL": "gemini-3.8-flash"}
+LIVE = {
+    "GEMINI_API_KEY": "test-key-khong-that",
+    "AI_MOCK": False,
+    "GEMINI_MODEL": "gemini-3.8-flash",
+    "FALLBACK_AI_API_KEY": "",  # không phụ thuộc cấu hình .env của máy chạy test
+}
 
 
 def fake_client(text="Kính gửi anh Test, ..."):
@@ -106,7 +113,7 @@ class SuggestReplyLiveTests(TestCase):
 
 
 class MockModeTests(TestCase):
-    @override_settings(GEMINI_API_KEY="", AI_MOCK=False)
+    @override_settings(GEMINI_API_KEY="", FALLBACK_AI_API_KEY="", AI_MOCK=False)
     def test_mock_mode_when_api_key_missing(self):
         service = GeminiCRMService()
         self.assertTrue(service.is_mock)
@@ -125,3 +132,86 @@ class MockModeTests(TestCase):
 
     def test_get_ai_service_returns_shared_instance(self):
         self.assertIs(get_ai_service(), get_ai_service())
+
+
+FALLBACK = {
+    **LIVE,
+    "FALLBACK_AI_API_KEY": "fallback-key-khong-that",
+    "FALLBACK_AI_BASE_URL": "https://api.groq.com/openai/v1/",
+    "FALLBACK_AI_MODEL": "llama-3.3-70b-versatile",
+    "FALLBACK_AI_NAME": "Groq Llama 3.3",
+}
+
+
+def http_response(status=200, content="Email từ AI dự phòng"):
+    request = httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions")
+    return httpx.Response(status, json={"choices": [{"message": {"content": content}}]}, request=request)
+
+
+def failing_gemini(message="503 UNAVAILABLE high demand"):
+    client = mock.MagicMock()
+    client.models.generate_content.side_effect = RuntimeError(message)
+    return client
+
+
+@override_settings(**FALLBACK)
+class FallbackProviderTests(TestCase):
+    def setUp(self):
+        self.customer = make_customer(name="Đỗ Mạnh Khang")
+        self.service = GeminiCRMService()
+
+    def test_gemini_failure_switches_to_openai_compatible_provider(self):
+        with patch_client(failing_gemini()), mock.patch("httpx.post", return_value=http_response()) as post, \
+                self.assertLogs("crm.services.ai_service", level="WARNING"):
+            reply = self.service.suggest_reply(self.customer, "Khi nào kích hoạt tài khoản?")
+
+        self.assertEqual(reply, "Email từ AI dự phòng")
+        self.assertEqual(self.service.last_provider_label, "Groq Llama 3.3")
+        url = post.call_args.args[0]
+        kwargs = post.call_args.kwargs
+        self.assertEqual(url, "https://api.groq.com/openai/v1/chat/completions")
+        self.assertEqual(kwargs["headers"]["Authorization"], "Bearer fallback-key-khong-that")
+        self.assertEqual(kwargs["json"]["model"], "llama-3.3-70b-versatile")
+        self.assertIn("Đỗ Mạnh Khang", kwargs["json"]["messages"][0]["content"])
+
+    @override_settings(GEMINI_API_KEY="")
+    def test_only_fallback_key_uses_provider_directly(self):
+        self.assertFalse(self.service.is_mock)
+        with mock.patch("google.genai.Client") as client_cls, \
+                mock.patch("httpx.post", return_value=http_response()):
+            self.service.suggest_reply(self.customer, "Xin chào")
+        client_cls.assert_not_called()
+        self.assertEqual(self.service.last_provider_label, "Groq Llama 3.3")
+
+    def test_gemini_success_does_not_call_fallback(self):
+        with patch_client(fake_client("Email từ Gemini")), mock.patch("httpx.post") as post:
+            reply = self.service.suggest_reply(self.customer, "Xin chào")
+        post.assert_not_called()
+        self.assertEqual(reply, "Email từ Gemini")
+        self.assertEqual(self.service.last_provider_label, "AI Gemini")
+
+    def test_both_providers_fail_raise_combined_error(self):
+        with patch_client(failing_gemini()), mock.patch("httpx.post", return_value=http_response(402)), \
+                self.assertLogs("crm.services.ai_service", level="WARNING"):
+            with self.assertRaises(AIServiceError) as ctx:
+                self.service.suggest_reply(self.customer, "Xin chào")
+        message = str(ctx.exception)
+        self.assertIn("Cả Gemini và AI dự phòng đều đang lỗi", message)
+        self.assertIn("hết số dư", message)
+        self.assertNotIn("fallback-key-khong-that", message)
+
+    def test_network_error_and_think_tags(self):
+        with mock.patch("httpx.post", side_effect=httpx.ConnectError("boom")), \
+                self.assertLogs("crm.services.ai_service", level="ERROR"):
+            with self.assertRaises(AIServiceError):
+                self.service._generate_openai_compatible("prompt")
+        with mock.patch("httpx.post", return_value=http_response(content="<think>nháp</think>\nEmail cuối")):
+            self.assertEqual(self.service._generate_openai_compatible("prompt"), "Email cuối")
+
+    def test_json_schema_requests_json_object(self):
+        schema = {"type": "OBJECT", "properties": {"segment": {"type": "STRING"}}}
+        with mock.patch("httpx.post", return_value=http_response(content='{"segment": "VIP"}')) as post:
+            self.service._generate_openai_compatible("Phân loại", json_schema=schema)
+        payload = post.call_args.kwargs["json"]
+        self.assertEqual(payload["response_format"], {"type": "json_object"})
+        self.assertIn('"segment"', payload["messages"][0]["content"])
