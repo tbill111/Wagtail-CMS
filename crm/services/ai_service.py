@@ -41,7 +41,7 @@ class GeminiCRMService:
 
     @property
     def model_name(self):
-        return getattr(settings, "GEMINI_MODEL", "") or "gemini-2.5-flash"
+        return getattr(settings, "GEMINI_MODEL", "") or "gemini-3.8-flash"
 
     @property
     def is_mock(self):
@@ -103,32 +103,57 @@ class GeminiCRMService:
 
         return "\n".join(lines)
 
+    @property
+    def fallback_model_name(self):
+        return getattr(settings, "GEMINI_FALLBACK_MODEL", "") or ""
+
+    @staticmethod
+    def _is_temporary_error(exc):
+        """Lỗi phía máy chủ Google (quá tải, 5xx) – nên thử lại bằng model dự phòng."""
+        raw = str(exc).lower()
+        return any(k in raw for k in ("503", "unavailable", "overloaded", "high demand", "500", "internal"))
+
     def _generate(self, prompt, *, json_schema=None):
-        """Gọi Gemini và trả về văn bản. Mọi lỗi được chuyển thành ``AIServiceError``."""
-        try:
-            from google.genai import types
+        """Gọi Gemini và trả về văn bản. Mọi lỗi được chuyển thành ``AIServiceError``.
 
-            config_kwargs = {"temperature": 0.7}
-            if json_schema is not None:
-                config_kwargs["response_mime_type"] = "application/json"
-                config_kwargs["response_schema"] = json_schema
-            response = self.client.models.generate_content(
-                model=self.model_name,
-                contents=prompt,
-                config=types.GenerateContentConfig(**config_kwargs),
-            )
-            text = (getattr(response, "text", None) or "").strip()
-        except AIServiceError:
-            raise
-        except Exception as exc:  # noqa: BLE001 – gom mọi lỗi của SDK/mạng
-            # Chỉ ghi loại lỗi + model, không bao giờ ghi API key
-            logger.error("Gọi Gemini thất bại (model=%s): %s", self.model_name, type(exc).__name__)
-            raise AIServiceError(self._friendly_message(exc)) from exc
+        Nếu model chính quá tải (503) sẽ tự thử lại một lần với ``GEMINI_FALLBACK_MODEL``.
+        """
+        from google.genai import types
 
-        if not text:
-            logger.warning("Gemini trả về nội dung rỗng (model=%s)", self.model_name)
-            raise AIServiceError("AI không trả về nội dung. Vui lòng thử lại.")
-        return text
+        config_kwargs = {
+            "temperature": 0.7,
+            # Không dùng function calling -> tắt AFC để tránh cảnh báo của SDK
+            "automatic_function_calling": types.AutomaticFunctionCallingConfig(disable=True),
+        }
+        if json_schema is not None:
+            config_kwargs["response_mime_type"] = "application/json"
+            config_kwargs["response_schema"] = json_schema
+
+        models = [self.model_name]
+        if self.fallback_model_name and self.fallback_model_name != self.model_name:
+            models.append(self.fallback_model_name)
+
+        for index, model in enumerate(models):
+            try:
+                response = self.client.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(**config_kwargs),
+                )
+                text = (getattr(response, "text", None) or "").strip()
+            except Exception as exc:  # noqa: BLE001 – gom mọi lỗi của SDK/mạng
+                # Chỉ ghi loại lỗi + model, không bao giờ ghi API key
+                has_next = index + 1 < len(models)
+                if has_next and self._is_temporary_error(exc):
+                    logger.warning("Gemini quá tải (model=%s), thử model dự phòng %s", model, models[index + 1])
+                    continue
+                logger.error("Gọi Gemini thất bại (model=%s): %s", model, type(exc).__name__)
+                raise AIServiceError(self._friendly_message(exc)) from exc
+
+            if not text:
+                logger.warning("Gemini trả về nội dung rỗng (model=%s)", model)
+                raise AIServiceError("AI không trả về nội dung. Vui lòng thử lại.")
+            return text
 
     @staticmethod
     def _friendly_message(exc):
@@ -139,6 +164,8 @@ class GeminiCRMService:
             return "Đã hết hạn mức (quota) gọi Gemini. Vui lòng thử lại sau hoặc bật chế độ mô phỏng."
         if "not found" in raw or "404" in raw:
             return "Không tìm thấy model Gemini đã cấu hình. Vui lòng kiểm tra GEMINI_MODEL."
+        if GeminiCRMService._is_temporary_error(exc):
+            return "Máy chủ Gemini đang quá tải. Vui lòng thử lại sau ít giây hoặc bật chế độ mô phỏng."
         return AIServiceError.default_message
 
     # --------------------------------------------------------- tính năng AI

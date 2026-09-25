@@ -203,7 +203,9 @@ WAGTAILDOCS_MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10MB
 
 # Google Gemini (AI) — đọc từ biến môi trường, KHÔNG hard-code API key
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "").strip() or "gemini-2.5-flash"
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "").strip() or "gemini-3.8-flash"
+# Model dự phòng khi model chính quá tải (503); để trống để tắt
+GEMINI_FALLBACK_MODEL = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-flash-latest").strip()
 AI_MOCK = env_bool("AI_MOCK", default=False)
 
 LOGGING = {

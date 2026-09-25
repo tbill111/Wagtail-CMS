@@ -7,7 +7,7 @@ from crm.services.ai_service import AIServiceError, GeminiCRMService, get_ai_ser
 
 from .factories import make_customer, make_order
 
-LIVE = {"GEMINI_API_KEY": "test-key-khong-that", "AI_MOCK": False, "GEMINI_MODEL": "gemini-2.5-flash"}
+LIVE = {"GEMINI_API_KEY": "test-key-khong-that", "AI_MOCK": False, "GEMINI_MODEL": "gemini-3.8-flash"}
 
 
 def fake_client(text="Kính gửi anh Test, ..."):
@@ -44,7 +44,7 @@ class SuggestReplyLiveTests(TestCase):
 
         self.assertEqual(reply, "Chào anh Cường ...")
         kwargs = client.models.generate_content.call_args.kwargs
-        self.assertEqual(kwargs["model"], "gemini-2.5-flash")
+        self.assertEqual(kwargs["model"], "gemini-3.8-flash")
         prompt = kwargs["contents"]
         for expected in ["Lê Hoàng Cường", "Thiết kế website", "Có giảm giá không?", "trang trọng", "không bịa"]:
             self.assertIn(expected, prompt)
@@ -57,6 +57,29 @@ class SuggestReplyLiveTests(TestCase):
                 self.service.suggest_reply(self.customer, "Xin chào")
         self.assertIn("quota", str(ctx.exception))
         self.assertNotIn("test-key-khong-that", str(ctx.exception))
+
+    @override_settings(GEMINI_FALLBACK_MODEL="gemini-flash-latest")
+    def test_overloaded_model_falls_back_to_backup_model(self):
+        client = mock.MagicMock()
+        client.models.generate_content.side_effect = [
+            RuntimeError("503 UNAVAILABLE high demand"),
+            mock.MagicMock(text="Email từ model dự phòng"),
+        ]
+        with patch_client(client), self.assertLogs("crm.services.ai_service", level="WARNING"):
+            reply = self.service.suggest_reply(self.customer, "Xin chào")
+        self.assertEqual(reply, "Email từ model dự phòng")
+        used = [c.kwargs["model"] for c in client.models.generate_content.call_args_list]
+        self.assertEqual(used, ["gemini-3.8-flash", "gemini-flash-latest"])
+
+    @override_settings(GEMINI_FALLBACK_MODEL="gemini-flash-latest")
+    def test_non_temporary_error_does_not_fall_back(self):
+        client = mock.MagicMock()
+        client.models.generate_content.side_effect = RuntimeError("400 API key not valid")
+        with patch_client(client), self.assertLogs("crm.services.ai_service", level="ERROR"):
+            with self.assertRaises(AIServiceError) as ctx:
+                self.service.suggest_reply(self.customer, "Xin chào")
+        self.assertEqual(client.models.generate_content.call_count, 1)
+        self.assertIn("API key", str(ctx.exception))
 
     def test_empty_response_raises_ai_service_error(self):
         with patch_client(fake_client("")), self.assertLogs("crm.services.ai_service", level="WARNING"):

@@ -33,7 +33,7 @@ Chạy: `python manage.py test crm` — mọi lời gọi Gemini đều được
 | Nhóm | File | Nội dung chính |
 |---|---|---|
 | Model | `crm/tests/test_models.py` | Sinh mã đơn `DH-YYYYMMDD-0001` và tăng dần; `subtotal`; `total_amount`; `total_spent` chỉ tính đơn Hoàn thành; thứ tự tương tác |
-| AI service | `crm/tests/test_ai_service.py` | Prompt chứa dữ liệu khách/đơn/tin nhắn/giọng văn; exception SDK → `AIServiceError` (không lộ key); phản hồi rỗng; `json_schema` → `application/json`; client lazy; chế độ MOCK |
+| AI service | `crm/tests/test_ai_service.py` | Prompt chứa dữ liệu khách/đơn/tin nhắn/giọng văn; model quá tải (503) tự chuyển sang model dự phòng; exception SDK → `AIServiceError` (không lộ key); phản hồi rỗng; `json_schema` → `application/json`; client lazy; chế độ MOCK |
 | Views/API | `crm/tests/test_views.py` | Chưa đăng nhập → chuyển hướng; user không phải staff bị chặn; API suggest-reply 200/400/404/405/503; mock end-to-end; save-interaction tạo bản ghi + trả HTML; tìm kiếm/lọc/phân trang |
 
-Kết quả lần chạy gần nhất: **32 test – OK** (xem README mục "Chạy kiểm thử").
+Kết quả lần chạy gần nhất: **34 test – OK** (xem README mục "Chạy kiểm thử").
