@@ -1,7 +1,7 @@
 # SmartCRM ✨ – Quản lý khách hàng thông minh cùng AI
 
 **Đề tài:** Xây dựng hệ thống CRM thông minh tích hợp trợ lý AI Gemini trên nền tảng Wagtail CMS
-**Môn học:** Hệ thống kinh doanh thông minh – Trường Đại học Thủy Lợi – Nhóm ...
+**Môn học:** Hệ thống kinh doanh thông minh – Trường Đại học Thủy Lợi – Nhóm 3
 
 SmartCRM là một hệ thống CRM (quản trị quan hệ khách hàng) cơ bản xây dựng trên **Wagtail CMS**.
 Nhân viên quản lý khách hàng, đơn hàng trong Wagtail Admin; khi khách gửi tin nhắn, **Google Gemini**
