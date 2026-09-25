@@ -1,0 +1,140 @@
+{% extends "crm/base.html" %}
+{% load crm_tags %}
+
+{% block title %}{{ customer.name }}{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-2">
+    <ol class="breadcrumb small mb-0">
+        <li class="breadcrumb-item"><a href="{% url 'crm:customer_list' %}">Khách hàng</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ customer.name }}</li>
+    </ol>
+</nav>
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+        <h1 class="h3 mb-0">{{ customer.name }}</h1>
+        <span class="badge {{ customer.status|status_badge }}">{{ customer.get_status_display }}</span>
+    </div>
+    <a href="{% url 'wagtailsnippets_crm_customer:edit' customer.pk %}" class="btn btn-sm btn-outline-primary">Sửa trong Admin</a>
+</div>
+
+<div class="row g-4">
+    {# ------------------------------------------------ Cột trái: thông tin + đơn hàng #}
+    <div class="col-12 col-lg-5">
+        <div class="sc-card mb-4">
+            <h2 class="h6 text-uppercase text-muted mb-3">Thông tin khách hàng</h2>
+            <dl class="row mb-0 sc-info">
+                <dt class="col-5">Email</dt><dd class="col-7"><a href="mailto:{{ customer.email }}">{{ customer.email }}</a></dd>
+                <dt class="col-5">Điện thoại</dt><dd class="col-7">{{ customer.phone|default:"—" }}</dd>
+                <dt class="col-5">Công ty</dt><dd class="col-7">{{ customer.company|default:"—" }}</dd>
+                <dt class="col-5">Nguồn</dt><dd class="col-7">{{ customer.get_source_display }}</dd>
+                <dt class="col-5">Phụ trách</dt><dd class="col-7">{{ customer.assigned_staff.get_username|default:"—" }}</dd>
+                <dt class="col-5">Ngày tạo</dt><dd class="col-7">{{ customer.created_at|date:"d/m/Y" }}</dd>
+                <dt class="col-5">Tổng chi tiêu</dt><dd class="col-7 fw-semibold text-primary">{{ customer.total_spent|vnd }}</dd>
+            </dl>
+        </div>
+
+        <div class="sc-card">
+            <h2 class="h6 text-uppercase text-muted mb-3">Đơn hàng ({{ orders|length }})</h2>
+            {% if orders %}
+            <div class="list-group list-group-flush">
+                {% for order in orders %}
+                <div class="list-group-item px-0">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="fw-semibold">{{ order.code }}</span>
+                        <span class="badge {{ order.status|order_badge }}">{{ order.get_status_display }}</span>
+                    </div>
+                    <div class="small text-muted">{{ order.created_at|date:"d/m/Y" }} · {{ order.total_amount|vnd }}</div>
+                    <ul class="small mb-0 ps-3 mt-1">
+                        {% for item in order.items.all %}
+                        <li>{{ item.product_name }} × {{ item.quantity }} – {{ item.subtotal|vnd }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="sc-empty">Khách hàng chưa có đơn hàng nào.</div>
+            {% endif %}
+        </div>
+    </div>
+
+    {# ------------------------------------------------ Cột phải: AI + timeline #}
+    <div class="col-12 col-lg-7">
+        {# ĐIỂM MỞ RỘNG: các khối AI mới (phân loại khách, báo cáo…) đặt ở đây, phía trên khối gợi ý phản hồi #}
+        <div id="ai-extra-panels">
+            {% block ai_extra %}{% endblock %}
+        </div>
+
+        <section class="sc-card ai-card mb-4" id="ai-reply-card"
+                 data-suggest-url="{% url 'crm:api_suggest_reply' customer.pk %}"
+                 data-save-url="{% url 'crm:api_save_interaction' customer.pk %}"
+                 data-max-length="{{ max_message_length }}">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                <h2 class="h5 mb-0 text-ai">✨ Gợi ý phản hồi AI</h2>
+                <span class="ai-badge">Gợi ý bởi AI Gemini{% if ai_is_mock %} (chế độ mô phỏng){% endif %}</span>
+            </div>
+            {% csrf_token %}
+            <div class="mb-2">
+                <label for="ai-message" class="form-label fw-semibold">Tin nhắn / email của khách</label>
+                <textarea id="ai-message" class="form-control" rows="4" maxlength="{{ max_message_length }}"
+                          placeholder="Dán nội dung khách hàng gửi đến, ví dụ: Đơn hàng của tôi bao giờ được giao?"></textarea>
+                <div class="form-text text-end"><span id="ai-message-count">0</span>/{{ max_message_length }} ký tự</div>
+            </div>
+            <div class="row g-2 align-items-end mb-3">
+                <div class="col-6 col-md-4">
+                    <label for="ai-tone" class="form-label small text-muted mb-1">Giọng văn</label>
+                    <select id="ai-tone" class="form-select">
+                        {% for tone in tones %}
+                        <option value="{{ tone }}" {% if tone == default_tone %}selected{% endif %}>{{ tone|capfirst }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-6 col-md-3">
+                    <label for="ai-channel" class="form-label small text-muted mb-1">Kênh</label>
+                    <select id="ai-channel" class="form-select">
+                        {% for value, label in channels %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-12 col-md-5 d-grid">
+                    <button type="button" id="ai-suggest-btn" class="btn btn-ai">✨ Gợi ý phản hồi</button>
+                </div>
+            </div>
+
+            <div id="ai-result" class="ai-result d-none">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <label for="ai-reply" class="form-label fw-semibold mb-0">Nội dung phản hồi (có thể chỉnh sửa)</label>
+                    <span class="ai-badge ai-badge-sm" id="ai-result-label">Gợi ý bởi AI Gemini</span>
+                </div>
+                <textarea id="ai-reply" class="form-control mb-2" rows="9"></textarea>
+                <div class="d-flex flex-wrap gap-2">
+                    <button type="button" id="ai-copy-btn" class="btn btn-outline-secondary btn-sm">📋 Sao chép</button>
+                    <button type="button" id="ai-save-btn" class="btn btn-primary btn-sm">💾 Lưu vào lịch sử</button>
+                    <button type="button" id="ai-retry-btn" class="btn btn-outline-ai btn-sm">✨ Gợi ý lại</button>
+                </div>
+            </div>
+        </section>
+
+        <section class="sc-card">
+            <h2 class="h6 text-uppercase text-muted mb-3">Lịch sử tương tác</h2>
+            <div id="interaction-timeline" class="sc-timeline">
+                {% for interaction in interactions %}
+                    {% include "crm/_interaction_item.html" %}
+                {% empty %}
+                    <div class="sc-empty" id="timeline-empty">Chưa có tương tác nào.</div>
+                {% endfor %}
+            </div>
+        </section>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    SmartCRM.initSuggestReply(document.getElementById("ai-reply-card"));
+});
+</script>
+{% endblock %}

@@ -1,0 +1,20 @@
+<article class="sc-timeline-item{% if interaction.is_ai_generated %} is-ai{% endif %}{% if is_new %} is-new{% endif %}" id="interaction-{{ interaction.pk }}">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-1 mb-1">
+        <div class="small">
+            <span class="badge text-bg-light border">{{ interaction.get_channel_display }}</span>
+            <span class="text-muted">{{ interaction.created_at|date:"d/m/Y H:i" }}</span>
+            {% if interaction.staff %}<span class="text-muted">· {{ interaction.staff.get_username }}</span>{% endif %}
+        </div>
+        {% if interaction.is_ai_generated %}<span class="ai-badge ai-badge-sm">✨ AI hỗ trợ</span>{% endif %}
+    </div>
+    <div class="sc-msg sc-msg-customer">
+        <div class="sc-msg-label">Khách hàng</div>
+        {{ interaction.customer_message|linebreaksbr }}
+    </div>
+    {% if interaction.final_reply %}
+    <div class="sc-msg sc-msg-reply">
+        <div class="sc-msg-label">Phản hồi</div>
+        {{ interaction.final_reply|linebreaksbr }}
+    </div>
+    {% endif %}
+</article>

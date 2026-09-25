@@ -7,6 +7,10 @@ import sys
 def main():
     """Run administrative tasks."""
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "smartcrm.settings.dev")
+    # In tiếng Việt an toàn trên console Windows (cp1252/cp437)
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:

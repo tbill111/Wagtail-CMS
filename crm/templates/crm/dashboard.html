@@ -1,0 +1,81 @@
+{% extends "crm/base.html" %}
+{% load crm_tags %}
+
+{% block title %}Tổng quan{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-4">
+    <div>
+        <h1 class="h3 mb-1">Tổng quan</h1>
+        <p class="text-muted mb-0">Tình hình khách hàng và hoạt động chăm sóc gần đây.</p>
+    </div>
+    <a href="{% url 'crm:customer_list' %}" class="btn btn-primary">Xem danh sách khách hàng</a>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+        <div class="sc-card sc-stat h-100">
+            <div class="sc-stat-label">Tổng khách hàng</div>
+            <div class="sc-stat-value">{{ stats.total_customers }}</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="sc-card sc-stat h-100">
+            <div class="sc-stat-label">Khách mới trong tháng</div>
+            <div class="sc-stat-value">{{ stats.new_customers }}</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="sc-card sc-stat h-100">
+            <div class="sc-stat-label">Doanh thu đơn hoàn thành</div>
+            <div class="sc-stat-value">{{ stats.revenue|vnd }}</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="sc-card sc-stat h-100">
+            <div class="sc-stat-label">Tương tác 7 ngày qua</div>
+            <div class="sc-stat-value">{{ stats.recent_interactions }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="sc-card">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="h5 mb-0">5 tương tác mới nhất</h2>
+    </div>
+    {% if latest_interactions %}
+    <div class="table-responsive">
+        <table class="table align-middle mb-0">
+            <thead>
+            <tr>
+                <th>Thời gian</th>
+                <th>Khách hàng</th>
+                <th>Kênh</th>
+                <th>Tin nhắn</th>
+                <th>Nguồn phản hồi</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for item in latest_interactions %}
+            <tr>
+                <td class="text-nowrap small">{{ item.created_at|date:"d/m/Y H:i" }}</td>
+                <td><a href="{% url 'crm:customer_detail' item.customer.pk %}">{{ item.customer.name }}</a></td>
+                <td>{{ item.get_channel_display }}</td>
+                <td class="small text-muted">{{ item.customer_message|truncatechars:80 }}</td>
+                <td>
+                    {% if item.is_ai_generated %}
+                    <span class="ai-badge">✨ AI hỗ trợ</span>
+                    {% else %}
+                    <span class="badge text-bg-light border">Thủ công</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="sc-empty">Chưa có tương tác nào. Hãy mở một khách hàng và thử gợi ý phản hồi bằng AI ✨</div>
+    {% endif %}
+</div>
+{% endblock %}

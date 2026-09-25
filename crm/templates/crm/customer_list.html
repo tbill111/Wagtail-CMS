@@ -1,0 +1,95 @@
+{% extends "crm/base.html" %}
+{% load crm_tags %}
+
+{% block title %}Khách hàng{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-4">
+    <div>
+        <h1 class="h3 mb-1">Khách hàng</h1>
+        <p class="text-muted mb-0">{{ page_obj.paginator.count }} khách hàng{% if query or status %} phù hợp bộ lọc{% endif %}.</p>
+    </div>
+    <a href="{% url 'wagtailsnippets_crm_customer:add' %}" class="btn btn-outline-primary">+ Thêm khách hàng (Admin)</a>
+</div>
+
+<form method="get" class="sc-card mb-3">
+    <div class="row g-2 align-items-end">
+        <div class="col-12 col-md-6">
+            <label for="q" class="form-label small text-muted mb-1">Tìm kiếm</label>
+            <input type="search" id="q" name="q" value="{{ query }}" class="form-control" placeholder="Tên, email hoặc số điện thoại…">
+        </div>
+        <div class="col-8 col-md-4">
+            <label for="status" class="form-label small text-muted mb-1">Trạng thái</label>
+            <select id="status" name="status" class="form-select">
+                <option value="">Tất cả trạng thái</option>
+                {% for value, label in status_choices %}
+                <option value="{{ value }}" {% if value == status %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-4 col-md-2 d-grid">
+            <button type="submit" class="btn btn-primary">Lọc</button>
+        </div>
+    </div>
+</form>
+
+<div class="sc-card">
+    {% if customers %}
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead>
+            <tr>
+                <th>Khách hàng</th>
+                <th class="d-none d-md-table-cell">Số điện thoại</th>
+                <th class="d-none d-lg-table-cell">Công ty</th>
+                <th>Trạng thái</th>
+                <th class="d-none d-md-table-cell">Phụ trách</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for customer in customers %}
+            <tr>
+                <td>
+                    <a href="{% url 'crm:customer_detail' customer.pk %}" class="fw-semibold">{{ customer.name }}</a>
+                    <div class="small text-muted">{{ customer.email }}</div>
+                </td>
+                <td class="d-none d-md-table-cell">{{ customer.phone|default:"—" }}</td>
+                <td class="d-none d-lg-table-cell">{{ customer.company|default:"—" }}</td>
+                <td><span class="badge {{ customer.status|status_badge }}">{{ customer.get_status_display }}</span></td>
+                <td class="d-none d-md-table-cell small">{{ customer.assigned_staff.get_username|default:"—" }}</td>
+                <td class="text-end"><a href="{% url 'crm:customer_detail' customer.pk %}" class="btn btn-sm btn-outline-primary">Chi tiết</a></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if page_obj.has_other_pages %}
+    <nav class="mt-3" aria-label="Phân trang">
+        <ul class="pagination pagination-sm justify-content-center mb-0">
+            {% if page_obj.has_previous %}
+            <li class="page-item"><a class="page-link" href="{% query_string page=page_obj.previous_page_number %}">‹ Trước</a></li>
+            {% else %}
+            <li class="page-item disabled"><span class="page-link">‹ Trước</span></li>
+            {% endif %}
+            {% for number in page_obj.paginator.page_range %}
+            <li class="page-item {% if number == page_obj.number %}active{% endif %}">
+                <a class="page-link" href="{% query_string page=number %}">{{ number }}</a>
+            </li>
+            {% endfor %}
+            {% if page_obj.has_next %}
+            <li class="page-item"><a class="page-link" href="{% query_string page=page_obj.next_page_number %}">Sau ›</a></li>
+            {% else %}
+            <li class="page-item disabled"><span class="page-link">Sau ›</span></li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+    {% else %}
+    <div class="sc-empty">
+        {% if query or status %}Không tìm thấy khách hàng phù hợp. <a href="{% url 'crm:customer_list' %}">Xoá bộ lọc</a>{% else %}Chưa có khách hàng nào. Hãy thêm khách hàng trong trang Admin.{% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,176 @@
+/* SmartCRM – giao diện chung */
+:root {
+    --sc-primary: #1e3a8a;
+    --sc-primary-hover: #1e40af;
+    --sc-bg: #f5f7fb;
+    --sc-card: #ffffff;
+    --sc-text: #1f2937;
+    --sc-muted: #6b7280;
+    --sc-border: #e5e7eb;
+    --sc-radius: 12px;
+    --sc-shadow: 0 1px 3px rgba(15, 23, 42, .06), 0 4px 16px rgba(15, 23, 42, .05);
+
+    /* Màu dành riêng cho mọi thứ liên quan đến AI */
+    --sc-ai: #7c3aed;
+    --sc-ai-hover: #6d28d9;
+    --sc-ai-soft: #f5f3ff;
+    --sc-ai-border: #ddd6fe;
+
+    --bs-primary: var(--sc-primary);
+    --bs-primary-rgb: 30, 58, 138;
+    --bs-link-color: var(--sc-primary);
+    --bs-link-color-rgb: 30, 58, 138;
+    --bs-link-hover-color: var(--sc-primary-hover);
+    --bs-body-font-family: "Be Vietnam Pro", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+html, body { height: 100%; }
+body {
+    display: flex;
+    flex-direction: column;
+    background: var(--sc-bg);
+    color: var(--sc-text);
+    font-family: var(--bs-body-font-family);
+}
+main { flex: 1 0 auto; }
+a { text-decoration: none; }
+
+/* ---------- Navbar / footer ---------- */
+.sc-navbar { background: var(--sc-primary); box-shadow: 0 2px 8px rgba(30, 58, 138, .25); }
+.sc-brand { font-weight: 700; letter-spacing: .2px; }
+.sc-brand-spark { color: #c4b5fd; }
+.sc-navbar .nav-link.active { font-weight: 600; }
+.sc-footer {
+    flex-shrink: 0;
+    padding: 1rem 0;
+    font-size: .875rem;
+    color: var(--sc-muted);
+    border-top: 1px solid var(--sc-border);
+    background: #fff;
+}
+
+/* ---------- Bootstrap overrides ---------- */
+.btn-primary {
+    --bs-btn-bg: var(--sc-primary);
+    --bs-btn-border-color: var(--sc-primary);
+    --bs-btn-hover-bg: var(--sc-primary-hover);
+    --bs-btn-hover-border-color: var(--sc-primary-hover);
+    --bs-btn-active-bg: var(--sc-primary-hover);
+    --bs-btn-disabled-bg: var(--sc-primary);
+    --bs-btn-disabled-border-color: var(--sc-primary);
+}
+.btn-outline-primary {
+    --bs-btn-color: var(--sc-primary);
+    --bs-btn-border-color: var(--sc-primary);
+    --bs-btn-hover-bg: var(--sc-primary);
+    --bs-btn-hover-border-color: var(--sc-primary);
+    --bs-btn-active-bg: var(--sc-primary);
+}
+.pagination { --bs-pagination-active-bg: var(--sc-primary); --bs-pagination-active-border-color: var(--sc-primary); }
+.table > :not(caption) > * > * { padding: .7rem .6rem; }
+.table thead th { font-size: .8rem; text-transform: uppercase; color: var(--sc-muted); font-weight: 600; }
+
+/* ---------- Thẻ (card) ---------- */
+.sc-card {
+    background: var(--sc-card);
+    border-radius: var(--sc-radius);
+    box-shadow: var(--sc-shadow);
+    padding: 1.25rem;
+}
+.sc-stat-label { font-size: .85rem; color: var(--sc-muted); }
+.sc-stat-value { font-size: 1.6rem; font-weight: 700; color: var(--sc-primary); margin-top: .25rem; word-break: break-word; }
+.sc-info dt { font-weight: 500; color: var(--sc-muted); }
+.sc-info dd { margin-bottom: .5rem; word-break: break-word; }
+.sc-empty {
+    text-align: center;
+    color: var(--sc-muted);
+    padding: 1.5rem 1rem;
+    border: 1px dashed var(--sc-border);
+    border-radius: var(--sc-radius);
+}
+
+/* ---------- Thành phần AI (dùng chung cho mọi tính năng AI) ---------- */
+.text-ai { color: var(--sc-ai) !important; }
+.ai-card {
+    border-left: 4px solid var(--sc-ai);
+    background: linear-gradient(180deg, var(--sc-ai-soft) 0%, #fff 55%);
+}
+.ai-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    padding: .25rem .6rem;
+    font-size: .78rem;
+    font-weight: 600;
+    color: var(--sc-ai);
+    background: var(--sc-ai-soft);
+    border: 1px solid var(--sc-ai-border);
+    border-radius: 999px;
+    white-space: nowrap;
+}
+.ai-badge-sm { font-size: .7rem; padding: .15rem .5rem; }
+.btn-ai {
+    --bs-btn-color: #fff;
+    --bs-btn-bg: var(--sc-ai);
+    --bs-btn-border-color: var(--sc-ai);
+    --bs-btn-hover-color: #fff;
+    --bs-btn-hover-bg: var(--sc-ai-hover);
+    --bs-btn-hover-border-color: var(--sc-ai-hover);
+    --bs-btn-active-color: #fff;
+    --bs-btn-active-bg: var(--sc-ai-hover);
+    --bs-btn-disabled-color: #fff;
+    --bs-btn-disabled-bg: var(--sc-ai);
+    --bs-btn-disabled-border-color: var(--sc-ai);
+    font-weight: 600;
+}
+.btn-outline-ai {
+    --bs-btn-color: var(--sc-ai);
+    --bs-btn-border-color: var(--sc-ai);
+    --bs-btn-hover-color: #fff;
+    --bs-btn-hover-bg: var(--sc-ai);
+    --bs-btn-hover-border-color: var(--sc-ai);
+    --bs-btn-active-color: #fff;
+    --bs-btn-active-bg: var(--sc-ai-hover);
+}
+.ai-result {
+    border-left: 3px solid var(--sc-ai);
+    padding-left: .85rem;
+    animation: sc-fade-in .3s ease;
+}
+.ai-card .form-control:focus, .ai-card .form-select:focus {
+    border-color: var(--sc-ai-border);
+    box-shadow: 0 0 0 .2rem rgba(124, 58, 237, .15);
+}
+
+/* ---------- Timeline tương tác ---------- */
+.sc-timeline { display: flex; flex-direction: column; gap: .9rem; }
+.sc-timeline-item {
+    border: 1px solid var(--sc-border);
+    border-radius: 10px;
+    padding: .75rem .9rem;
+}
+.sc-timeline-item.is-ai { border-left: 3px solid var(--sc-ai); }
+.sc-timeline-item.is-new { animation: sc-highlight 2s ease; }
+.sc-msg { font-size: .92rem; border-radius: 8px; padding: .5rem .7rem; margin-top: .4rem; word-break: break-word; }
+.sc-msg-customer { background: #f3f4f6; }
+.sc-msg-reply { background: #eff6ff; }
+.sc-msg-label { font-size: .72rem; font-weight: 600; text-transform: uppercase; color: var(--sc-muted); margin-bottom: .15rem; }
+
+/* ---------- Trang chủ ---------- */
+.sc-hero {
+    background: linear-gradient(135deg, var(--sc-primary) 0%, #312e81 60%, var(--sc-ai) 100%);
+    color: #fff;
+    border-radius: var(--sc-radius);
+    padding: 3rem 1.5rem;
+}
+.sc-hero .lead { color: rgba(255, 255, 255, .85); }
+.sc-feature-icon { font-size: 1.75rem; }
+
+@keyframes sc-fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes sc-highlight { from { background: var(--sc-ai-soft); } to { background: transparent; } }
+
+@media (max-width: 575.98px) {
+    .sc-card { padding: 1rem; }
+    .sc-stat-value { font-size: 1.25rem; }
+    .sc-hero { padding: 2rem 1rem; }
+}

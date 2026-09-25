@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
-{% block title %}Page not found{% endblock %}
-
-{% block body_class %}template-404{% endblock %}
+{% block title %}Không tìm thấy trang{% endblock %}
 
 {% block content %}
-<h1>Page not found</h1>
-
-<h2>Sorry, this page could not be found.</h2>
+<div class="sc-card text-center py-5">
+    <h1 class="display-6 fw-bold text-primary">404</h1>
+    <p class="lead">Xin lỗi, không tìm thấy trang bạn yêu cầu.</p>
+    <a href="/" class="btn btn-primary">Về trang chủ SmartCRM</a>
+</div>
 {% endblock %}

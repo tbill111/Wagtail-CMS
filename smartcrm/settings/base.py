@@ -38,7 +38,6 @@ def env_bool(name, default=False):
 
 INSTALLED_APPS = [
     "home",
-    "search",
     "crm",
     "wagtail.contrib.forms",
     "wagtail.contrib.redirects",

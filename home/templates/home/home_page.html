@@ -1,21 +1,42 @@
-{% extends "base.html" %}
-{% load static %}
+{% extends "crm/base.html" %}
+{% load wagtailcore_tags wagtailuserbar %}
 
+{% block title %}Trang chủ{% endblock %}
 {% block body_class %}template-homepage{% endblock %}
 
-{% block extra_css %}
-
-{% comment %}
-Delete the line below if you're just getting started and want to remove the welcome screen!
-{% endcomment %}
-<link rel="stylesheet" href="{% static 'css/welcome_page.css' %}">
-{% endblock extra_css %}
-
 {% block content %}
+{% wagtailuserbar %}
+<section class="sc-hero text-center mb-4">
+    <h1 class="display-5 fw-bold mb-2">SmartCRM <span aria-hidden="true">✨</span></h1>
+    <p class="lead mb-4">Quản lý khách hàng thông minh cùng AI</p>
+    <p class="mb-4 mx-auto" style="max-width: 640px;">
+        Hệ thống CRM thông minh tích hợp trợ lý AI Gemini trên nền tảng Wagtail CMS:
+        quản lý khách hàng, đơn hàng, lịch sử tương tác và để AI soạn sẵn email phản hồi dựa trên dữ liệu thật.
+    </p>
+    <a href="{% url 'crm:dashboard' %}" class="btn btn-light btn-lg fw-semibold px-4">Vào hệ thống</a>
+</section>
 
-{% comment %}
-Delete the line below if you're just getting started and want to remove the welcome screen!
-{% endcomment %}
-{% include 'home/welcome_page.html' %}
-
-{% endblock content %}
+<div class="row g-3">
+    <div class="col-12 col-md-4">
+        <div class="sc-card h-100">
+            <div class="sc-feature-icon mb-2">👥</div>
+            <h2 class="h5">Quản lý khách hàng</h2>
+            <p class="text-muted mb-0">Lưu thông tin, trạng thái chăm sóc, nguồn khách và nhân viên phụ trách ngay trong Wagtail Admin.</p>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="sc-card h-100">
+            <div class="sc-feature-icon mb-2">🧾</div>
+            <h2 class="h5">Đơn hàng &amp; doanh thu</h2>
+            <p class="text-muted mb-0">Mã đơn tự sinh, nhiều dòng sản phẩm mỗi đơn, tự tính tổng tiền và tổng chi tiêu của khách.</p>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="sc-card ai-card h-100">
+            <div class="sc-feature-icon mb-2">✨</div>
+            <h2 class="h5 text-ai">Gợi ý phản hồi bằng AI</h2>
+            <p class="text-muted mb-0">Gemini đọc lịch sử mua hàng và tương tác để soạn email phản hồi; nhân viên chỉnh sửa rồi lưu lại.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
