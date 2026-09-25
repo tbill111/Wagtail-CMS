@@ -1,0 +1,22 @@
+# Môi trường ảo
+venv/
+.venv/
+env/
+
+# Bí mật
+.env
+
+# CSDL & file người dùng tải lên
+db.sqlite3
+media/
+/static/
+
+# Python
+__pycache__/
+*.py[cod]
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
