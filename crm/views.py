@@ -1,3 +1,7 @@
-from django.shortcuts import render
+from django.contrib.admin.views.decorators import staff_member_required
+from django.http import HttpResponse
 
-# Create your views here.
+
+@staff_member_required(login_url="/admin/login/")
+def dashboard(request):
+    return HttpResponse("SmartCRM – đang xây dựng")
