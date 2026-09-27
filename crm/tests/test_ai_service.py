@@ -217,91 +217,146 @@ class FallbackProviderTests(TestCase):
         self.assertEqual(payload["response_format"], {"type": "json_object"})
         self.assertIn('"segment"', payload["messages"][0]["content"])
 
-class ClassifyCustomerTests(TestCase):
+
+def classify_json(**overrides):
+    data = {
+        "sentiment": "negative",
+        "priority": "high",
+        "suggested_status": "caring",
+        "summary": "Khách phàn nàn máy in bị mờ.",
+        "next_actions": ["Gọi lại cho khách", "Gửi kỹ thuật"],
+    }
+    data.update(overrides)
+    return json.dumps(data, ensure_ascii=False)
+
+
+@override_settings(**LIVE)
+class AnalyzeCustomerLiveTests(TestCase):
     def setUp(self):
+        self.customer = make_customer(name="Trần Thị Bình", status="lead")
+        make_order(self.customer, Order.Status.COMPLETED, [("Máy in hoá đơn", 1, 1350000)])
+        InteractionLog.objects.create(customer=self.customer, customer_message="Máy in bị mờ, rất bực mình")
         self.service = GeminiCRMService()
 
-    @override_settings(AI_MOCK=True)
-    def test_mock_classification_churned_is_high_priority(self):
-        customer = make_customer(status="churned")
-        result = self.service.analyze_customer(customer)
-        self.assertEqual(result["sentiment"], "negative")
+    def analyze(self, text):
+        client = fake_client(text)
+        with patch_client(client):
+            result = self.service.analyze_customer(self.customer)
+        return result, client
+
+    def test_prompt_contains_customer_data_and_uses_schema(self):
+        _, client = self.analyze(classify_json())
+        kwargs = client.models.generate_content.call_args.kwargs
+        for expected in ["Trần Thị Bình", "Máy in hoá đơn", "Máy in bị mờ", "không bịa"]:
+            self.assertIn(expected, kwargs["contents"])
+        self.assertEqual(kwargs["config"].response_mime_type, "application/json")
+
+    def test_valid_json_saves_ai_fields_without_changing_status(self):
+        result, _ = self.analyze(classify_json())
         self.assertEqual(result["priority"], "high")
-        self.assertEqual(customer.ai_priority, "high")
-        self.assertIsNotNone(customer.ai_analyzed_at)
-
-    def test_safe_defaults_when_ai_returns_invalid_data(self):
-        customer = make_customer(status="caring")
-        # Giả lập _generate_live trả về JSON thiếu/sai
-        with patch_client(fake_client('{"sentiment": "super_happy", "priority": "urgent", "suggested_status": "unknown"}')):
-            result = self.service._analyze_customer_live(customer)
-        self.assertEqual(result["sentiment"], "neutral")  # fallback
-        self.assertEqual(result["priority"], "medium")   # fallback
-        self.assertEqual(result["suggested_status"], "caring") # fallback to current status
-
-    def test_next_actions_truncated_to_three_and_status_not_changed(self):
-        customer = make_customer(status="lead")
-        fake_json = json.dumps({
-            "sentiment": "positive",
-            "priority": "high",
-            "suggested_status": "customer",
-            "summary": "Tóm tắt mẫu",
-            "next_actions": ["A1", "A2", "A3", "A4", "A5"]
-        })
-        with patch_client(fake_client(fake_json)):
-            result = self.service.analyze_customer(customer)
-        self.assertEqual(len(result["next_actions"]), 3)
-        self.assertEqual(result["next_actions"], ["A1", "A2", "A3"])
-        customer.refresh_from_db()
-        # Không tự đổi status
-        self.assertEqual(customer.status, "lead")
-        self.assertEqual(customer.ai_suggested_status, "customer")
+        self.customer.refresh_from_db()
+        self.assertEqual(self.customer.ai_sentiment, "negative")
+        self.assertEqual(self.customer.ai_priority, "high")
+        self.assertEqual(self.customer.ai_suggested_status, "caring")
+        self.assertEqual(self.customer.ai_summary, "Khách phàn nàn máy in bị mờ.")
+        self.assertEqual(self.customer.ai_next_actions, ["Gọi lại cho khách", "Gửi kỹ thuật"])
+        self.assertEqual(self.customer.ai_provider, "AI Gemini")
+        self.assertIsNotNone(self.customer.ai_analyzed_at)
+        self.assertEqual(self.customer.status, "lead")
 
     def test_invalid_json_raises_ai_service_error(self):
-        customer = make_customer()
-        with patch_client(fake_client("Đây không phải JSON")):
-            with self.assertRaises(AIServiceError):
-                self.service._analyze_customer_live(customer)
+        with self.assertRaises(AIServiceError) as ctx:
+            self.analyze("Đây không phải JSON")
+        self.assertIn("JSON", str(ctx.exception))
+        self.customer.refresh_from_db()
+        self.assertIsNone(self.customer.ai_analyzed_at)
 
-    @override_settings(AI_MOCK=True)
-    def test_mock_classification_format(self):
-        customer = make_customer(status="lead")
-        make_order(customer)
-        result = self.service.analyze_customer(customer)
-        self.assertIn("sentiment", result)
-        self.assertIn("priority", result)
-        self.assertIn("suggested_status", result)
-        self.assertIn("summary", result)
-        self.assertIsInstance(result["next_actions"], list)
+    def test_unknown_or_wrong_type_values_fall_back_to_safe_defaults(self):
+        result, _ = self.analyze(classify_json(
+            sentiment=["positive"], priority="urgent", suggested_status="vip", summary=None, next_actions="gọi lại"
+        ))
+        self.assertEqual(result["sentiment"], "neutral")
+        self.assertEqual(result["priority"], "medium")
+        self.assertEqual(result["suggested_status"], "lead")  # giữ nguyên trạng thái hiện tại
+        self.assertEqual(result["summary"], "")
+        self.assertEqual(result["next_actions"], [])
+
+    def test_next_actions_are_cut_to_three_strings(self):
+        result, _ = self.analyze(classify_json(next_actions=["A1", 2, " ", "A3", "A4", "A5"]))
+        self.assertEqual(result["next_actions"], ["A1", "2", "A3"])
+
+    def test_json_wrapped_in_markdown_fence_with_leading_text(self):
+        result, _ = self.analyze("Đây là kết quả:\n```json\n" + classify_json(priority="low") + "\n```")
+        self.assertEqual(result["priority"], "low")
+        result, _ = self.analyze("Kết quả: " + classify_json(priority="medium") + " Hết.")
+        self.assertEqual(result["priority"], "medium")
+
+    @override_settings(**FALLBACK)
+    @override_settings(GEMINI_API_KEY="")
+    def test_fallback_provider_json_is_parsed_and_labelled(self):
+        content = "```json\n" + classify_json(sentiment="positive") + "\n```"
+        with mock.patch("httpx.post", return_value=http_response(content=content)) as post:
+            result = self.service.analyze_customer(self.customer)
+        self.assertEqual(post.call_args.kwargs["json"]["response_format"], {"type": "json_object"})
+        self.assertEqual(result["sentiment"], "positive")
+        self.customer.refresh_from_db()
+        self.assertEqual(self.customer.ai_provider, "Groq Llama 3.3")
+
+
+@override_settings(AI_MOCK=True)
+class AnalyzeCustomerMockTests(TestCase):
+    def test_mock_returns_valid_structure_without_calling_ai(self):
+        customer = make_customer(status="churned")
+        client = mock.MagicMock()
+        with patch_client(client), mock.patch("httpx.post") as post:
+            result = GeminiCRMService().analyze_customer(customer)
+        client.models.generate_content.assert_not_called()
+        post.assert_not_called()
+        self.assertEqual((result["sentiment"], result["priority"]), ("negative", "high"))
+        self.assertLessEqual(len(result["next_actions"]), 3)
+        customer.refresh_from_db()
+        self.assertEqual(customer.ai_provider, "AI Gemini (chế độ mô phỏng)")
+        self.assertEqual(customer.status, "churned")
 
 
 class ReportStatsTests(TestCase):
     def setUp(self):
-        self.service = GeminiCRMService()
+        self.an = make_customer(name="An", email="an@example.com", status="customer", ai_sentiment="positive")
+        self.binh = make_customer(name="Bình", email="binh@example.com", status="churned", ai_sentiment="negative")
+        make_customer(name="Cường", email="cuong@example.com")
+        make_order(self.an, Order.Status.COMPLETED, [("SP1", 2, 100000), ("SP2", 1, 50000)])  # 250.000
+        make_order(self.binh, Order.Status.COMPLETED, [("SP3", 1, 300000)])  # 300.000
+        make_order(self.an, Order.Status.CANCELLED, [("SP4", 1, 1000000)])  # không tính
+        make_order(self.an, Order.Status.PROCESSING, [("SP5", 1, 70000)])  # không tính
 
-    def test_build_report_stats_calculates_revenue_correctly(self):
-        customer = make_customer()
-        # Đơn hoàn thành -> doanh thu
-        make_order(customer, status=Order.Status.COMPLETED, items=[("SP1", 2, 100000), ("SP2", 1, 50000)]) # 250k
-        make_order(customer, status=Order.Status.COMPLETED, items=[("SP3", 1, 300000)]) # 300k
-        # Đơn huỷ -> không tính
-        make_order(customer, status=Order.Status.CANCELLED, items=[("SP4", 1, 1000000)])
-
-        stats = self.service.build_report_stats()
+    def test_stats_match_database_and_are_json_serializable(self):
+        stats = GeminiCRMService.build_report_stats()
+        json.dumps(stats)  # không có Decimal/datetime -> lưu JSONField được
+        self.assertEqual(stats["total_customers"], 3)
+        self.assertEqual(stats["new_customers_month"], 3)
         self.assertEqual(stats["revenue"], 550000)
-        self.assertEqual(stats["total_customers"], 1)
-        # Kiểm tra không có Decimal trong stats để không lỗi JSONField
-        json_str = json.dumps(stats)
-        self.assertIsInstance(json_str, str)
+        self.assertEqual(stats["customers_by_status"]["lead"]["count"], 1)
+        self.assertEqual(stats["customers_by_status"]["churned"]["count"], 1)
+        self.assertEqual(stats["orders_by_status"]["completed"]["count"], 2)
+        self.assertEqual(stats["orders_by_status"]["cancelled"]["count"], 1)
+        self.assertEqual(stats["top_customers"], [{"name": "Bình", "spent": 300000}, {"name": "An", "spent": 250000}])
+        self.assertEqual(stats["sentiment_counts"]["negative"]["count"], 1)
+        self.assertEqual(stats["analyzed_count"], 2)
+
+    @override_settings(**LIVE)
+    def test_live_report_sends_stats_to_ai(self):
+        client = fake_client("TÌNH HÌNH CHUNG\n- ...")
+        with patch_client(client):
+            result = GeminiCRMService().generate_report()
+        prompt = client.models.generate_content.call_args.kwargs["contents"]
+        for expected in ['"revenue": 550000', "RỦI RO CẦN CHÚ Ý", "không bịa"]:
+            self.assertIn(expected, prompt)
+        self.assertEqual(result["insight"], "TÌNH HÌNH CHUNG\n- ...")
+        self.assertIn("generated_at", result)
 
     @override_settings(AI_MOCK=True)
-    def test_mock_report_generation(self):
-        customer = make_customer()
-        make_order(customer, status=Order.Status.COMPLETED, items=[("SP1", 1, 100000)])
-        
-        result = self.service.generate_report()
-        self.assertIn("stats", result)
-        self.assertIn("insight", result)
-        self.assertIn("TÌNH HÌNH CHUNG", result["insight"])
-        self.assertIn("100.000", result["insight"])
-
+    def test_mock_report_only_uses_real_stats(self):
+        insight = GeminiCRMService().generate_report()["insight"]
+        for expected in ["TÌNH HÌNH CHUNG", "RỦI RO CẦN CHÚ Ý", "ĐỀ XUẤT HÀNH ĐỘNG", "550.000 ₫", "1 đơn hàng bị huỷ"]:
+            self.assertIn(expected, insight)
+        self.assertNotIn("chưa được phản hồi", insight)
