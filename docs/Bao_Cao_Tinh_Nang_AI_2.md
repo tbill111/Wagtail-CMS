@@ -14,6 +14,7 @@
 ## 2. Danh sách file thay đổi & Migration mới
 * **Thêm mới**:
   - `crm/migrations/0002_ai_classify_report.py`: Migration bổ sung trường vào `Customer` và tạo bảng `AIReport`.
+  - `crm/migrations/0003_customer_ai_provider.py`: thêm `Customer.ai_provider` (sửa sau review).
   - `crm/templates/crm/_ai_classify_card.html`: Template component Phân loại AI.
   - `crm/templates/crm/report.html`: Template trang Báo cáo AI.
   - `docs/Bao_Cao_Tinh_Nang_AI_2.md`: File báo cáo này.
@@ -29,48 +30,54 @@
   - `README.md`, `docs/TEST_CASES.md`: Cập nhật tài liệu kỹ thuật và test cases.
 
 ## 3. Kết quả Test
-- **Đã viết 13 Unit Test mới**, tổng cộng nâng số lượng tests của ứng dụng lên 53 tests (40 tests cũ + 13 tests mới).
-- Mọi unit test hoàn toàn chạy giả lập (mock), không cần kết nối mạng hay tốn quota API key.
-- Hệ thống test đã cover các logic:
-  - Phân tích dự phòng khi AI trả JSON lỗi / sai schema / ngoài enum.
-  - Cắt `next_actions` còn tối đa 3 chuỗi; không tự ý thay đổi `Customer.status`.
-  - Tính toán số liệu thống kê doanh thu và xác thực không chứa kiểu `Decimal` trong JSON stats.
-  - Các API: `analyze` (200, 404, 405, 503), `apply-status` (200, 400), `generate-report` (200, 400 khi rỗng).
-  - Phân quyền: chặn user chưa đăng nhập, kiểm tra sự tồn tại của link navbar "Báo cáo AI" ở mọi trang.
+- `python manage.py test crm`: **65 test – OK** (40 test cũ + 25 test mới). `makemigrations --check`: không còn thay đổi.
+- Test mới không gọi mạng: mọi lời gọi AI được mock (`GeminiCRMService.client`, `httpx.post` hoặc method service) và cấu hình được cô lập bằng `override_settings` (`LIVE`, `FALLBACK`, `AI_MOCK=True`). Đã kiểm tra: chạy với `AI_MOCK=True` trong môi trường vẫn PASS.
+- Nội dung chính:
+  - `analyze_customer`: prompt chứa dữ liệu khách và dùng JSON schema; JSON hợp lệ → lưu đủ trường `ai_*` + `ai_provider`, không đổi `status`; JSON sai → `AIServiceError`; giá trị lạ/sai kiểu → `neutral`/`medium`/giữ trạng thái; `next_actions` cắt còn 3 chuỗi; JSON bọc ```` ```json ```` hoặc có lời dẫn; AI dự phòng; MOCK không gọi AI.
+  - `build_report_stats`/`generate_report`: số khách/đơn theo trạng thái, doanh thu, top khách, cảm xúc khớp dữ liệu tạo trong test; `json.dumps(stats)` chạy được; prompt chứa số liệu; nhận định MOCK chỉ dùng số liệu thật.
+  - API: analyze 200 (có `provider`, `can_apply`, giờ Việt Nam)/404/405/503; apply-status 200 (+ `badge_class`)/400; 401/403 JSON cho cả 3 API mới; generate-report 200 + lưu `AIReport`/503/CSDL rỗng → 400 và **không gọi AI**.
+  - Trang: `/crm/reports/` yêu cầu đăng nhập; link "Báo cáo AI" có ở **mọi** trang `/crm/`; Admin "Báo cáo AI" chỉ xem; `seed_demo --analyze` không gọi AI và chạy lại được.
 
 ## 4. Bảng kết quả kiểm tra luồng API AI (Mục B, C, D)
+Chạy ngày 27/09/2026 (nhóm trưởng kiểm lại sau review) trên bản sao CSDL sau `seed_demo --reset --analyze`, gọi API qua Django test client với tài khoản staff. Sau đó chạy E2E trên Google Chrome thật bằng Playwright: 26/26 kiểm tra PASS (xem `docs/TEST_CASES.md` mục 4).
 
 ### B. Ma trận chế độ AI
-| Chế độ | Cấu hình `.env` | Kết quả mong đợi | Kết quả thực tế |
-|---|---|---|---|
-| 1. MOCK | `AI_MOCK=True` | 200, `mock: true`, giao diện hiện "(chế độ mô phỏng)", không gọi Internet | **Đạt** |
-| 2. Gemini thật | `AI_MOCK=False`, có `GEMINI_API_KEY` | 200, `mock: false`, `provider: "AI Gemini"`, phân tích dựa trên dữ liệu thật | **Đạt** |
-| 3. AI dự phòng | Xoá `GEMINI_API_KEY`, điền `FALLBACK_AI_*` (Groq/OpenRouter) | 200, `provider` = `FALLBACK_AI_NAME`, parse JSON phân loại an toàn | **Đạt** |
-| 4. Key sai | `GEMINI_API_KEY=abc`, không có dự phòng | 503, toast đỏ tiếng Việt, không lộ key | **Đạt** |
-| 5. Gemini quá tải / hết quota | Giả lập lỗi 503 / 429 | Tự động chuyển qua model fallback hoặc AI dự phòng | **Đạt** |
+| Chế độ | Kết quả thực tế |
+|---|---|
+| 1. MOCK | **Đạt** – cả 3 API trả 200, `mock: true`; `can_apply` chỉ `true` khi đề xuất khác trạng thái hiện tại |
+| 2. Gemini thật | **Đạt** – Gợi ý phản hồi 200; Báo cáo 200 đủ 3 phần, số liệu khớp thẻ số; Phân loại lần 1 trả 503 "Máy chủ Gemini đang quá tải…", lần 2 trả 200 qua model dự phòng, JSON hợp lệ |
+| 3. AI dự phòng | **Chưa chạy thật** – chưa có key Groq/OpenRouter; chỉ có unit test giả lập |
+| 4. Key sai | **Đạt** – cả 3 API trả 503 "API key Gemini không hợp lệ…", không lộ key |
+| 5. Quá tải / hết quota | **Đạt với quá tải (gặp tự nhiên)**; hết quota (429) và chuyển sang AI dự phòng chỉ kiểm bằng unit test |
 
-### C. Kiểm tra từng API Endpoint
-| Endpoint | Trường hợp kiểm thử | Kết quả mong đợi | Kết quả thực tế |
-|---|---|---|---|
-| `POST /crm/api/customers/<id>/suggest-reply/` | Dữ liệu chuẩn / rỗng / quá dài / sai tone / 404 / GET | 200 có `reply, mock, provider`; lỗi 400; 404; 405 | **Đạt** |
-| `POST /crm/api/customers/<id>/save-interaction/` | Lưu tương tác thành công / thiếu dữ liệu | 201 có `interaction_html`; 400 khi thiếu phản hồi | **Đạt** |
-| `POST /crm/api/customers/<id>/analyze/` | Phân tích thành công / khách không tồn tại / GET | 200 có đủ trường dữ liệu; 404; 405 | **Đạt** |
-| `POST /crm/api/customers/<id>/apply-status/` | Áp dụng trạng thái đề xuất / chưa có đề xuất / trùng | 200 cập nhật DB và trả `badge_class`; 400 khi không hợp lệ | **Đạt** |
-| `POST /crm/api/reports/generate/` | Sinh báo cáo thành công / CSDL chưa có khách | 200 có `stats, insight, generated_at, provider`; 400 khi CSDL rỗng | **Đạt** |
-| Mọi API trên | Chưa đăng nhập / Không phải staff | Trả về JSON 401 hoặc 403 (không phải redirect 302) | **Đạt** |
+### C. Kiểm tra từng API
+| Endpoint | Kết quả thực tế |
+|---|---|
+| `suggest-reply` / `save-interaction` (cũ) | Đạt – 40 test cũ PASS, gọi thật với Gemini trả 200 |
+| `POST …/analyze/` | Đạt – 200 đủ trường `data` + `provider`; 404; 405; 503 khi AI lỗi |
+| `POST …/apply-status/` | Đạt – 200 trả `status`, `status_display`, `badge_class`; 400 khi chưa có hoặc trùng đề xuất |
+| `POST /crm/api/reports/generate/` | Đạt – 200 đủ `stats, insight, generated_at, mock, provider`; lưu `AIReport`; CSDL rỗng → 400 không gọi AI |
+| Mọi API mới | Đạt – chưa đăng nhập 401 JSON, không phải staff 403 |
 
-### D. Kiểm tra luồng dữ liệu E2E (Admin → AI → Frontend → CSDL → Admin)
-1. Thêm khách hàng, đơn hàng, tương tác trong Wagtail Admin: Dữ liệu hiển thị chuẩn trên giao diện Frontend `/crm/`.
-2. Bấm "Phân tích khách hàng": AI phân tích cảm xúc, mức ưu tiên, tóm tắt và hành động tiếp theo.
-3. Bấm "Áp dụng": Badge trạng thái tại đầu trang đổi màu/chữ ngay lập tức không tải lại trang; trong Admin trạng thái được cập nhật.
-4. Bấm "Tạo báo cáo nhận định" tại `/crm/reports/`: Sinh văn bản nhận định 3 phần; đồng thời lưu bản ghi `AIReport` hiển thị trong Admin (CRM → Báo cáo AI).
-5. Dashboard `/crm/`: Cập nhật bảng "Khách hàng cần chú ý (Ưu tiên Cao)" với khách hàng vừa được phân loại.
+### D. Luồng dữ liệu Admin → AI → Frontend → CSDL → Admin
+Đã kiểm bằng API/HTML: kết quả phân tích lưu vào `Customer.ai_*`, hiện ở trang chi tiết, danh sách (lọc `?priority=`), Tổng quan và Admin (cột/bộ lọc + panel "Phân tích AI"); báo cáo lưu `AIReport`, xem được ở Admin (chỉ xem). Các bước bấm nút trên trình duyệt đã chạy E2E: Đạt, không lỗi JS, màn 375px không tràn ngang.
 
 ## 5. Giả định & Khác biệt so với mô tả
-- Để tránh bị lỗi môi trường Python (Django 6.1.1 chỉ chạy với Python >= 3.12 trong khi Python gốc là 3.10), migration `0002_ai_classify_report.py` được tạo hoàn toàn thủ công.
-- Các JSON block từ fallback provider được validate thông qua hàm `_parse_json_safe` để xử lý các text bọc code format (markdown ` ```json `) mà các mô hình OpenRouter, Groq hay sử dụng.
-- Frontend không cần reload lại toàn trang mà cập nhật trạng thái trực tiếp trên DOM (sử dụng JS `document.getElementById("customer-status-badge")`).
-- Test suite có thể chạy và pass khi setup đúng Python environment.
+- Migration `0002_ai_classify_report.py` do thành viên viết tay (máy dùng Python 3.10). Nhóm trưởng đã kiểm tra bằng `makemigrations --check` trên Python 3.13: khớp model.
+- Thêm migration `0003_customer_ai_provider.py`: trường `Customer.ai_provider` lưu tên AI đã phân tích (kèm "(chế độ mô phỏng)" nếu là MOCK) để hiển thị đúng sau khi tải lại trang.
+- API `analyze` trả thêm `data.status` và `data.can_apply` để giao diện chỉ hiện nút "Áp dụng" khi đề xuất khác trạng thái hiện tại.
+- API `generate` trả thêm `report` (thời điểm, người tạo) để cập nhật bảng "5 báo cáo gần nhất" không cần tải lại trang.
+- `AIReport` trong Admin dùng permission policy chỉ xem (không thêm/sửa/xoá, kể cả superuser); bản ghi chỉ được tạo từ `/crm/reports/`.
+- Chuỗi JSON từ AI dự phòng được parse bằng `_parse_json_safe` (chịu được ```` ```json ```` và lời dẫn trước/sau JSON).
+
+### Sửa sau review của nhóm trưởng
+- Giờ phân tích trong API trả theo UTC (lệch 7 tiếng) → đổi sang giờ Việt Nam.
+- Nút "Áp dụng" hiện cả khi đề xuất trùng trạng thái → dùng `can_apply`.
+- Form "Thêm" AIReport trong Admin tạo được bản ghi rỗng → chỉ xem.
+- `build_report_stats` lặp từng khách (N+1 truy vấn) → dùng `annotate`/`values().annotate(Count)`.
+- Nhận định MOCK có câu không dựa trên số liệu → mọi câu suy từ stats.
+- Tổng quan: giữ nguyên bảng "5 tương tác mới nhất" như bản gốc, thêm bảng "✨ Khách hàng ưu tiên cao (theo AI)".
+- Test cô lập cấu hình, bổ sung test còn thiếu; tài liệu ghi đúng kết quả thật.
 
 ## 6. Hướng dẫn nhóm trưởng Merge nhánh
 Vui lòng chạy các lệnh sau ở cửa sổ terminal (powershell/bash) để gộp mã nguồn từ nhánh `feature/ai-classify-report` vào nhánh `main`:

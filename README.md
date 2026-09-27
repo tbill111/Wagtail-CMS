@@ -17,11 +17,12 @@ SmartCRM là một hệ thống CRM (quản trị quan hệ khách hàng) cơ b�
 6. [Các URL chính](#6-các-url-chính)
 7. [Hướng dẫn sử dụng & kiểm thử chi tiết](#7-hướng-dẫn-sử-dụng--kiểm-thử-chi-tiết)
 8. [Chạy kiểm thử](#8-chạy-kiểm-thử)
-9. [Chế độ MOCK & xử lý sự cố](#9-chế-độ-mock--xử-lý-sự-cố)
-10. [Bảo mật](#10-bảo-mật)
-11. [Hướng dẫn mở rộng tính năng AI](#11-hướng-dẫn-mở-rộng-tính-năng-ai)
-12. [Ảnh chụp màn hình](#12-ảnh-chụp-màn-hình)
-13. [Cấu trúc thư mục](#13-cấu-trúc-thư-mục)
+9. [Triển khai bằng Docker](#9-triển-khai-bằng-docker)
+10. [Chế độ MOCK & xử lý sự cố](#10-chế-độ-mock--xử-lý-sự-cố)
+11. [Bảo mật](#11-bảo-mật)
+12. [Hướng dẫn mở rộng tính năng AI](#12-hướng-dẫn-mở-rộng-tính-năng-ai)
+13. [Ảnh chụp màn hình](#13-ảnh-chụp-màn-hình)
+14. [Cấu trúc thư mục](#14-cấu-trúc-thư-mục)
 
 ---
 
@@ -45,18 +46,18 @@ flowchart LR
 
 | # | Yêu cầu | Trạng thái | File / thư mục chính |
 |---|---|---|---|
-| 01 | Cài đặt môi trường Python và khởi tạo dự án Wagtail CMS | ✅ | `requirements.txt`, `manage.py`, `smartcrm/settings/base.py` (vi, Asia/Ho_Chi_Minh, `WAGTAIL_SITE_NAME`, đọc `.env`), `.env.example`, `.gitignore` |
-| 02 | Model tùy chỉnh lưu khách hàng, đơn hàng, báo cáo AI | ✅ | `crm/models.py` (Customer + các trường `ai_*`, Order, OrderItem, InteractionLog, AIReport), `crm/wagtail_hooks.py` (CustomerViewSet, OrderViewSet, InteractionLogViewSet, AIReportViewSet), `crm/migrations/` (0001_initial, 0002_ai_classify_report) |
+| 01 | Cài đặt môi trường Python và khởi tạo dự án Wagtail CMS | ✅ | `requirements.txt`, `manage.py`, `Dockerfile`, `smartcrm/settings/base.py` (vi, Asia/Ho_Chi_Minh, `WAGTAIL_SITE_NAME`, đọc `.env`), `.env.example`, `.gitignore` |
+| 02 | Model tùy chỉnh lưu khách hàng, đơn hàng, báo cáo AI | ✅ | `crm/models.py` (Customer + các trường `ai_*`, Order, OrderItem, InteractionLog, AIReport), `crm/wagtail_hooks.py` (CustomerViewSet, OrderViewSet, InteractionLogViewSet, AIReportViewSet), `crm/migrations/` (0001_initial, 0002_ai_classify_report, 0003_customer_ai_provider) |
 | 03 | Tích hợp API AI – gợi ý email, phân loại KH, báo cáo nhận định | ✅ | `crm/services/ai_service.py` (`GeminiCRMService`, `AIServiceError`, `get_ai_service`, phân loại & báo cáo nhanh, MOCK, fallback provider) |
 | 04 | Giao diện Frontend tương tác với AI | ✅ | `crm/views.py`, `crm/urls.py`, `crm/templates/crm/*.html` (`_ai_classify_card.html`, `report.html`), `crm/static/crm/js/ai.js` (`initSuggestReply`, `initClassifyCard`, `initReportPage`), `crm/static/crm/css/smartcrm.css` |
-| 05 | Kiểm thử luồng & tài liệu triển khai | ✅ | `crm/tests/` (53 unit test PASS), `crm/management/commands/seed_demo.py` (hỗ trợ `--analyze`), `docs/TEST_CASES.md`, `README.md` |
+| 05 | Kiểm thử luồng & tài liệu triển khai | ✅ | `crm/tests/` (65 unit test PASS), E2E trên trình duyệt (26/26 bước, `docs/TEST_CASES.md` mục 4), `crm/management/commands/seed_demo.py` (hỗ trợ `--analyze`), `README.md` (cài đặt mục 5, demo mục 7, triển khai Docker mục 9), `docs/screenshots/` |
 
 ## 3. Phân công nhiệm vụ
 
 - **Nhóm trưởng**: Thiết kế nền tảng hệ thống, Wagtail CMS base, CSDL ban đầu, tích hợp tính năng AI Gợi ý phản hồi email khách hàng, cơ chế AI Fallback.
-- **Thành viên 2**: Mở rộng CSDL với migration 0002, tích hợp tính năng AI Phân loại khách hàng (cảm xúc, độ ưu tiên, đề xuất trạng thái), tính năng AI Báo cáo nhận định nhanh, UI/UX các khối AI mới và kiểm thử luồng.
+- **Thành viên 2**: Mở rộng CSDL với migration 0002–0003, tích hợp tính năng AI Phân loại khách hàng (cảm xúc, độ ưu tiên, đề xuất trạng thái), tính năng AI Báo cáo nhận định nhanh, UI/UX các khối AI mới và kiểm thử luồng.
 
-## 3. Yêu cầu hệ thống
+## 4. Yêu cầu hệ thống
 
 | Thành phần | Phiên bản |
 |---|---|
@@ -68,7 +69,7 @@ flowchart LR
 | CSDL | SQLite (có sẵn trong Python) |
 | Trình duyệt | Chrome / Edge / Firefox bản mới (có Internet để tải Bootstrap 5 và font từ CDN) |
 
-## 4. Cài đặt từng bước
+## 5. Cài đặt từng bước
 
 ### Windows (PowerShell)
 
@@ -90,13 +91,13 @@ copy .env.example .env
 # Mở .env, dán GEMINI_API_KEY (xem mục "Lấy API key Gemini" bên dưới). Để trống thì hệ thống chạy chế độ mô phỏng.
 
 # 5. Tạo CSDL
-python manage.py migrate
+python manage.py migrate   # đã có CSDL từ bản cũ? chạy lại để áp dụng migration 0002–0003 (Phân loại & Báo cáo AI)
 
 # 6. Tạo tài khoản quản trị
 python manage.py createsuperuser
 
 # 7. Nạp dữ liệu mẫu (~10 khách, 12 đơn, 20 tương tác)
-python manage.py seed_demo
+python manage.py seed_demo --reset --analyze
 
 # 8. Chạy máy chủ
 python manage.py runserver
@@ -111,9 +112,9 @@ python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env          # rồi sửa GEMINI_API_KEY trong .env
-python manage.py migrate
+python manage.py migrate   # đã có CSDL từ bản cũ? chạy lại để áp dụng migration 0002–0003 (Phân loại & Báo cáo AI)
 python manage.py createsuperuser
-python manage.py seed_demo
+python manage.py seed_demo --reset --analyze
 python manage.py runserver
 ```
 
@@ -141,13 +142,13 @@ Các biến trong `.env`:
 Lệnh `seed_demo` chạy lại nhiều lần không bị trùng dữ liệu. Muốn xoá dữ liệu mẫu và tạo lại thì chạy `python manage.py seed_demo --reset`.
 Nếu tạo superuser **trước** khi seed, khách mẫu sẽ được gán cho tài khoản đó làm nhân viên phụ trách.
 
-## 5. Các URL chính
+## 6. Các URL chính
 
 | URL | Mô tả |
 |---|---|
 | <http://127.0.0.1:8000/> | Trang chủ giới thiệu SmartCRM |
 | <http://127.0.0.1:8000/admin/> | Wagtail Admin, menu **CRM** (Khách hàng, Đơn hàng, Lịch sử tương tác) và **Mở SmartCRM** |
-| <http://127.0.0.1:8000/crm/> | Tổng quan: 4 thẻ số liệu + 5 tương tác mới nhất + Khách hàng ưu tiên cao |
+| <http://127.0.0.1:8000/crm/> | Tổng quan: 4 thẻ số liệu + Khách hàng ưu tiên cao (theo AI) + 5 tương tác mới nhất |
 | <http://127.0.0.1:8000/crm/customers/> | Danh sách khách: tìm theo tên/email/SĐT, lọc trạng thái và ưu tiên AI, 10 khách/trang |
 | `/crm/customers/<id>/` | Chi tiết khách + khối **✨ Gợi ý phản hồi AI** + khối **✨ Phân loại AI** + timeline |
 | `POST /crm/api/customers/<id>/suggest-reply/` | Vào `{message, tone}`, ra `{ok, reply, mock, provider}` (`provider` = tên AI đã trả lời) |
@@ -163,11 +164,11 @@ Trang `/crm/` yêu cầu đăng nhập bằng tài khoản **staff**. Mã lỗi 
 **Cách dùng nhanh:** mở một khách hàng, dán tin nhắn của khách, chọn giọng văn (lịch sự / thân thiện / trang trọng) rồi bấm
 **✨ Gợi ý phản hồi**. Sau đó sửa nội dung nếu cần, bấm **Sao chép** hoặc **Lưu vào lịch sử**.
 
-## 6. Hướng dẫn sử dụng & kiểm thử chi tiết
+## 7. Hướng dẫn sử dụng & kiểm thử chi tiết
 
-Mục này dành cho người lần đầu chạy SmartCRM (giảng viên chấm bài, thành viên nhóm). Làm lần lượt từ 6.1 đến 6.5.
+Mục này dành cho người lần đầu chạy SmartCRM (giảng viên chấm bài, thành viên nhóm). Làm lần lượt từ 7.1 đến 7.5.
 
-### 6.1. Khởi động web
+### 7.1. Khởi động web
 
 Mỗi lần muốn dùng web, mở terminal **tại thư mục gốc dự án** (thư mục chứa `manage.py`) và chạy:
 
@@ -189,7 +190,7 @@ Khi terminal hiện dòng `Starting development server at http://127.0.0.1:8000/
 > Nếu thư mục `venv` nằm ở chỗ khác (ví dụ thư mục cha), hãy sửa đường dẫn cho phù hợp, ví dụ `..\venv\Scripts\Activate.ps1`.
 > Nếu cổng 8000 đang bị chiếm, chạy `python manage.py runserver 8080` và thay `8000` bằng `8080` trong các link bên dưới.
 
-### 6.2. Các link cần mở
+### 7.2. Các link cần mở
 
 | Link | Dùng để | Cần đăng nhập? |
 |---|---|---|
@@ -199,9 +200,9 @@ Khi terminal hiện dòng `Starting development server at http://127.0.0.1:8000/
 | <http://127.0.0.1:8000/crm/customers/> | Danh sách khách hàng: tìm kiếm, lọc, phân trang | Có (staff) |
 | `http://127.0.0.1:8000/crm/customers/<id>/` | Chi tiết một khách + khối **✨ Gợi ý phản hồi AI** | Có (staff) |
 
-Web chỉ mở được **trên chính máy đang chạy lệnh `runserver`**, và chỉ khi terminal ở bước 6.1 vẫn đang mở.
+Web chỉ mở được **trên chính máy đang chạy lệnh `runserver`**, và chỉ khi terminal ở bước 7.1 vẫn đang mở.
 
-### 6.3. Đăng nhập
+### 7.3. Đăng nhập
 
 1. Nếu chưa có tài khoản, tạo tài khoản quản trị (chỉ cần làm một lần):
    ```bash
@@ -219,7 +220,7 @@ Web chỉ mở được **trên chính máy đang chạy lệnh `runserver`**, v
 - Muốn tạo tài khoản cho nhân viên khác: vào Admin, chọn **Cài đặt → Người dùng → Thêm người dùng**, rồi bật quyền truy cập trang quản trị (hoặc cho vào nhóm *Moderators/Editors*).
 - Quên mật khẩu: chạy `python manage.py changepassword <tên_đăng_nhập>`.
 
-### 6.4. Nạp dữ liệu mẫu (khuyến nghị trước khi demo)
+### 7.4. Nạp dữ liệu mẫu (khuyến nghị trước khi demo)
 
 ```bash
 python manage.py seed_demo                    # tạo 10 khách, 12 đơn, 20 tương tác (chạy lại nhiều lần không bị trùng)
@@ -229,7 +230,7 @@ python manage.py seed_demo --reset --analyze  # xoá dữ liệu mẫu cũ rồi
 Dữ liệu mẫu dùng email đuôi `@demo.smartcrm.vn` và bao gồm đủ 4 trạng thái khách hàng (Tiềm năng, Đang chăm sóc, Đã mua hàng, Đã rời bỏ).
 `--reset` chỉ xoá khách mẫu, không động đến khách bạn tự thêm. Khi dùng `--analyze`, hệ thống chạy hoàn toàn ở chế độ MOCK nội bộ, không gọi ra ngoài và không tốn quota.
 
-### 6.5. Kịch bản kiểm thử luồng chính (khoảng 5 phút)
+### 7.5. Kịch bản kiểm thử luồng chính (khoảng 5 phút)
 
 Kịch bản này kiểm tra đủ luồng **Admin → AI → Frontend → lưu vào CSDL → xem lại ở Admin**.
 
@@ -286,7 +287,7 @@ Kịch bản này kiểm tra đủ luồng **Admin → AI → Frontend → lưu 
 **Bước 8 – Kiểm tra dữ liệu đã lưu ngược vào Admin**
 1. Bấm **Vào Admin** trên thanh điều hướng, rồi chọn **CRM → Lịch sử tương tác**.
 2. Mở bản ghi mới nhất. Bản ghi có đủ: khách hàng, kênh, *Tin nhắn của khách*, *Gợi ý phản hồi của AI* (bản gốc), *Phản hồi đã gửi* (bản đã sửa), *Có dùng AI* được tích, *Nhân viên xử lý* là tài khoản đang đăng nhập.
-3. Quay lại <http://127.0.0.1:8000/crm/>. Thẻ **Tương tác 7 ngày qua** tăng thêm 1, bảng **Khách hàng cần chú ý (Ưu tiên Cao)** xuất hiện khách hàng ưu tiên cao.
+3. Quay lại <http://127.0.0.1:8000/crm/>. Thẻ **Tương tác 7 ngày qua** tăng thêm 1, bảng **✨ Khách hàng ưu tiên cao (theo AI)** hiện các khách AI xếp mức Cao.
 
 **Bước 9 – Các kiểm tra bổ sung**
 
@@ -300,9 +301,9 @@ Kịch bản này kiểm tra đủ luồng **Admin → AI → Frontend → lưu 
 | Giao diện mobile | Bấm F12, chọn biểu tượng điện thoại (Ctrl+Shift+M), chọn iPhone | Bố cục 1 cột, khối AI nằm trên lịch sử, không bị tràn ngang |
 | Tin nhắn quá dài | Dán hơn 2000 ký tự | Ô nhập không cho gõ thêm; API trả lỗi 400 nếu gửi trực tiếp |
 
-Toàn bộ kịch bản kèm cột kết quả thực tế có trong [docs/TEST_CASES.md](docs/TEST_CASES.md). Ảnh minh hoạ từng bước có ở mục [Ảnh chụp màn hình](#11-ảnh-chụp-màn-hình).
+Toàn bộ kịch bản kèm cột kết quả thực tế có trong [docs/TEST_CASES.md](docs/TEST_CASES.md). Ảnh minh hoạ từng bước có ở mục [Ảnh chụp màn hình](#13-ảnh-chụp-màn-hình).
 
-### 6.6. Chuyển từ chế độ mô phỏng sang AI Gemini thật
+### 7.6. Chuyển từ chế độ mô phỏng sang AI Gemini thật
 
 1. Lấy API key tại <https://aistudio.google.com/apikey>.
 2. Mở file `.env` ở thư mục gốc (nếu chưa có thì copy từ `.env.example`) và sửa:
@@ -315,7 +316,7 @@ Toàn bộ kịch bản kèm cột kết quả thực tế có trong [docs/TEST_
 4. Mở lại trang chi tiết khách. Nhãn "(chế độ mô phỏng)" biến mất, và nội dung email do Gemini soạn dựa trên đơn hàng và lịch sử của chính khách đó.
 5. Khi demo mà mạng yếu hoặc hết quota, đặt `AI_MOCK=True` rồi khởi động lại server để quay về chế độ mô phỏng.
 
-### 6.7. Dùng AI dự phòng khi Gemini lỗi (Groq, OpenRouter, DeepSeek…)
+### 7.7. Dùng AI dự phòng khi Gemini lỗi (Groq, OpenRouter, DeepSeek…)
 
 Gemini thỉnh thoảng báo **503 quá tải** hoặc hết quota. Để web vẫn trả lời được, SmartCRM hỗ trợ một **nhà cung cấp AI dự phòng**
 theo chuẩn API tương thích OpenAI. Gemini vẫn là AI chính; AI dự phòng **chỉ được gọi khi Gemini lỗi**.
@@ -349,13 +350,13 @@ Danh sách model miễn phí và hạn mức do các nhà cung cấp tự thay �
 3. Khởi động lại server (`Ctrl + C`, rồi `python manage.py runserver`).
 4. Muốn thử AI dự phòng ngay mà không cần chờ Gemini lỗi: tạm xoá giá trị `GEMINI_API_KEY` trong `.env`, khởi động lại, rồi bấm **✨ Gợi ý phản hồi**. Nhãn kết quả sẽ hiện "Gợi ý bởi Groq Llama 3.3".
 
-## 7. Chạy kiểm thử
+## 8. Chạy kiểm thử
 
 ```bash
 python manage.py test crm
 ```
 
-Kết quả hiện tại: **53 test – OK**. Mọi lời gọi Gemini đều được giả lập bằng `unittest.mock`, nên test **không gọi mạng** và không cần API key.
+Kết quả hiện tại: **65 test – OK** (40 test cũ + 25 test cho Phân loại AI và Báo cáo AI). Mọi lời gọi AI đều được giả lập bằng `unittest.mock` và cấu hình được cô lập bằng `override_settings`, nên test **không gọi mạng** kể cả khi `.env` có key thật.
 Nội dung kiểm thử: sinh mã đơn, `subtotal`, `total_amount`, `total_spent`; prompt chứa dữ liệu khách; exception → `AIServiceError`;
 chế độ MOCK; chuyển sang model/nhà cung cấp AI dự phòng khi Gemini lỗi; chưa đăng nhập bị chuyển hướng; API suggest-reply 200/400/404/405/503; save-interaction tạo bản ghi; tìm kiếm/lọc/phân trang; API analyze/apply-status/generate-report; quyền hạn; và liên kết navbar.
 
@@ -365,12 +366,52 @@ Kiểm tra tổng thể trước khi nộp:
 ```bash
 python manage.py makemigrations --check
 python manage.py migrate
-python manage.py seed_demo
+python manage.py seed_demo --reset --analyze
 python manage.py test crm
 python manage.py runserver
 ```
 
-## 8. Chế độ MOCK & xử lý sự cố
+## 9. Triển khai bằng Docker
+
+Dùng khi muốn chạy SmartCRM trên máy khác (hoặc máy chủ) mà không cần cài Python. Image dùng Python 3.14 + gunicorn, tự chạy `migrate` mỗi lần khởi động. Đã kiểm tra với Docker Desktop 29 trên Windows.
+
+**Bước 1 – Chuẩn bị `.env`** (như mục 5, bước 4). Thêm một khoá bí mật bất kỳ:
+```
+DJANGO_SECRET_KEY=doi-thanh-chuoi-ngau-nhien-dai
+```
+`.env` **không** được đóng vào image (đã có trong `.dockerignore`); nó chỉ được truyền vào lúc chạy.
+
+**Bước 2 – Build image** (chạy trong thư mục `smartcrm/`, lần đầu mất vài phút):
+```bash
+docker build -t smartcrm .
+```
+
+**Bước 3 – Chạy container:**
+```bash
+docker run -d --name smartcrm --env-file .env -p 8000:8000 smartcrm
+```
+Mở <http://127.0.0.1:8000/admin/>. Xem log: `docker logs -f smartcrm`.
+
+**Bước 4 – Tạo tài khoản quản trị và dữ liệu mẫu** (một lần):
+```bash
+docker exec -it smartcrm python manage.py createsuperuser
+docker exec smartcrm python manage.py seed_demo --analyze
+```
+
+**Dừng / chạy lại / cập nhật code:**
+```bash
+docker stop smartcrm          # dừng, dữ liệu vẫn giữ trong container
+docker start smartcrm         # chạy lại
+docker rm -f smartcrm         # xoá container (MẤT dữ liệu SQLite bên trong)
+docker build -t smartcrm .    # sau khi sửa code: build lại, rồi rm + run lại
+```
+
+Lưu ý:
+- CSDL SQLite nằm **bên trong container** (`/app/db.sqlite3`), phù hợp cho demo. Xoá container là mất dữ liệu; triển khai thật nên dùng PostgreSQL.
+- Image chạy với settings `smartcrm.settings.dev` (`DEBUG=True`) để tự phục vụ file tĩnh mà không cần thêm thư viện. Chỉ dùng cho demo/nội bộ, không mở ra Internet công khai.
+- Đổi `.env` (ví dụ bật/tắt `AI_MOCK`, thay key) thì phải `docker rm -f smartcrm` rồi `docker run …` lại (mất dữ liệu cũ, cần tạo lại tài khoản + dữ liệu mẫu); `docker restart` không đọc lại `--env-file`.
+
+## 10. Chế độ MOCK & xử lý sự cố
 
 **Chế độ MOCK (mô phỏng):** bật khi `GEMINI_API_KEY` trống **hoặc** `AI_MOCK=True`. Khi đó AI trả về một email mẫu
 có tên khách, đúng cấu trúc như khi gọi thật. Giao diện hiện nhãn **"(chế độ mô phỏng)"**. Chế độ này dùng khi demo lúc không có
@@ -381,7 +422,7 @@ mạng hoặc khi đã hết quota.
 | Toast "API key Gemini không hợp lệ…" | Sai key hoặc key bị thu hồi | Tạo key mới ở Google AI Studio, sửa `.env`, khởi động lại server |
 | Toast "Đã hết hạn mức (quota)…" | Vượt giới hạn miễn phí (lỗi 429) | Đợi vài phút hoặc đặt `AI_MOCK=True` để demo |
 | Toast "Không tìm thấy model Gemini…" | `GEMINI_MODEL` sai hoặc model đã bị gỡ. Ví dụ `gemini-1.5-*` đã bị gỡ, còn `gemini-2.5-flash` **không còn cấp cho API key mới** (lỗi 404 "no longer available to new users") | Đặt `GEMINI_MODEL=gemini-3.8-flash` (mặc định), hoặc `gemini-flash-latest` |
-| Toast "Máy chủ Gemini đang quá tải…" | Google báo 503 "high demand" cho cả model chính lẫn model dự phòng (lỗi tạm thời phía Google) | Bấm **✨ Gợi ý lại** sau vài giây; cấu hình AI dự phòng (mục 6.7); hoặc đặt `AI_MOCK=True` khi demo |
+| Toast "Máy chủ Gemini đang quá tải…" | Google báo 503 "high demand" cho cả model chính lẫn model dự phòng (lỗi tạm thời phía Google) | Bấm **✨ Gợi ý lại** sau vài giây; cấu hình AI dự phòng (mục 7.7); hoặc đặt `AI_MOCK=True` khi demo |
 | Toast "Cả Gemini và AI dự phòng đều đang lỗi…" | Cả hai nhà cung cấp cùng lỗi; phần sau dấu `|` cho biết lý do của từng bên | Sửa theo lý do được báo (key sai, hết quota, hết số dư, sai tên model…) |
 | Toast "…đã hết số dư" | Tài khoản DeepSeek hết tiền (HTTP 402) | Nạp thêm hoặc chuyển sang Groq/OpenRouter miễn phí |
 | Toast "Phiên làm việc không hợp lệ (CSRF)…" / lỗi 403 | Cookie CSRF hết hạn, mở trang quá lâu, hoặc truy cập bằng domain khác | Tải lại trang (F5), đăng nhập lại; khi deploy hãy cấu hình `CSRF_TRUSTED_ORIGINS` |
@@ -391,7 +432,7 @@ mạng hoặc khi đã hết quota.
 
 Log lỗi AI được in ra console của `runserver` (logger `crm`). Log chỉ ghi loại lỗi và tên model, **không bao giờ ghi API key**.
 
-## 9. Bảo mật
+## 11. Bảo mật
 
 - **Không commit file `.env`**, vì file này đã có trong `.gitignore`. Chỉ commit `.env.example` với giá trị để trống.
 - API key chỉ được đọc từ biến môi trường, không có trong mã nguồn. Log và thông báo lỗi không chứa key.
@@ -401,7 +442,7 @@ Log lỗi AI được in ra console của `runserver` (logger `crm`). Log chỉ 
 - Khi triển khai thật: dùng `smartcrm.settings.production`, đặt `DJANGO_SECRET_KEY`, `ALLOWED_HOSTS`, `DEBUG=False`.
 - Nếu lỡ commit key, hãy **thu hồi key ngay** trong Google AI Studio rồi tạo key mới.
 
-## 10. Hướng dẫn mở rộng tính năng AI
+## 12. Hướng dẫn mở rộng tính năng AI
 
 Code được tách lớp để có thể thêm tính năng AI mới (ví dụ *Phân loại khách hàng*, *Báo cáo nhận định*) mà không phải sửa lại phần đã có.
 
@@ -445,7 +486,7 @@ Thêm vào `urls.py`: `path("api/customers/<int:pk>/classify/", views.api_classi
 - View: `mock.patch.object(GeminiCRMService, "classify_customer", return_value={...})` và `side_effect=AIServiceError(...)` để kiểm tra lỗi 503.
 - Chạy `python manage.py test crm` và bảo đảm không test nào gọi mạng.
 
-## 11. Ảnh chụp màn hình
+## 13. Ảnh chụp màn hình
 
 Ảnh nằm trong [docs/screenshots/](docs/screenshots/), được chụp tự động trong lúc kiểm thử end-to-end ở chế độ mô phỏng.
 
@@ -461,8 +502,16 @@ Thêm vào `urls.py`: `path("api/customers/<int:pk>/classify/", views.api_classi
 | Admin – Lịch sử tương tác | ![Admin lịch sử](docs/screenshots/09-admin-lich-su-tuong-tac.png) |
 | Admin – menu CRM & Mở SmartCRM | ![Admin menu](docs/screenshots/10-admin-menu.png) |
 | Giao diện mobile | ![Mobile](docs/screenshots/11-mobile-chi-tiet.png) |
+| Tổng quan – khách ưu tiên cao (theo AI) | ![Ưu tiên AI](docs/screenshots/12-tong-quan-uu-tien-ai.png) |
+| Danh sách – lọc Ưu tiên AI = Cao | ![Lọc ưu tiên](docs/screenshots/13-danh-sach-loc-uu-tien.png) |
+| ✨ Phân loại AI sau khi phân tích | ![Phân loại AI](docs/screenshots/14-phan-loai-ai.png) |
+| AI đề xuất trạng thái + nút Áp dụng | ![Đề xuất trạng thái](docs/screenshots/15-de-xuat-trang-thai.png) |
+| Báo cáo AI – nhận định 3 phần | ![Báo cáo AI](docs/screenshots/16-bao-cao-ai.png) |
+| Admin – panel "Phân tích AI" của khách | ![Admin phân tích AI](docs/screenshots/17-admin-phan-tich-ai.png) |
+| Admin – CRM → Báo cáo AI (chỉ xem) | ![Admin báo cáo AI](docs/screenshots/18-admin-bao-cao-ai.png) |
+| Mobile 375px – Phân loại AI | ![Mobile phân loại](docs/screenshots/19-mobile-phan-loai-ai.png) |
 
-## 12. Cấu trúc thư mục
+## 14. Cấu trúc thư mục
 
 ```
 smartcrm/                      (gốc repo)
@@ -486,4 +535,4 @@ smartcrm/                      (gốc repo)
 ```
 
 ---
-© 2026 SmartCRM – Nhóm ... – Trường Đại học Thủy Lợi
+© 2026 SmartCRM – Nhóm 3 – Trường Đại học Thủy Lợi
