@@ -137,3 +137,53 @@ class SaveInteractionApiTests(BaseViewTest):
         )
         self.assertEqual(self.post_json(self.save_url(pk=9999), {"message": "x", "final_reply": "y"}).status_code, 404)
         self.assertFalse(InteractionLog.objects.exists())
+
+
+class AIAPIViewTests(TestCase):
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        self.staff = get_user_model().objects.create_user("staff", password="x", is_staff=True)
+        self.client.force_login(self.staff)
+        self.customer = make_customer()
+
+    def post_json(self, url, data=None):
+        return self.client.post(url, data=data or {}, content_type="application/json")
+
+    @override_settings(AI_MOCK=True)
+    def test_api_analyze_customer_returns_json(self):
+        url = f"/crm/api/customers/{self.customer.pk}/analyze/"
+        response = self.post_json(url)
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["ok"])
+        self.assertIn("data", data)
+        self.assertIn("priority", data["data"])
+
+    def test_api_apply_status_updates_db(self):
+        self.customer.status = "lead"
+        self.customer.ai_suggested_status = "caring"
+        self.customer.save()
+
+        url = f"/crm/api/customers/{self.customer.pk}/apply-status/"
+        response = self.post_json(url)
+        self.assertEqual(response.status_code, 200)
+        
+        self.customer.refresh_from_db()
+        self.assertEqual(self.customer.status, "caring")
+        self.assertEqual(response.json()["status"], "caring")
+
+    @override_settings(AI_MOCK=True)
+    def test_api_generate_report_creates_history(self):
+        from crm.models import AIReport
+        url = "/crm/api/reports/generate/"
+        response = self.post_json(url)
+        self.assertEqual(response.status_code, 200)
+        
+        data = response.json()
+        self.assertTrue(data["ok"])
+        self.assertIn("insight", data)
+
+        report = AIReport.objects.first()
+        self.assertIsNotNone(report)
+        self.assertEqual(report.created_by, self.staff)
+        self.assertEqual(report.content, data["insight"])

@@ -141,11 +141,15 @@ Nếu tạo superuser **trước** khi seed, khách mẫu sẽ được gán cho
 |---|---|
 | <http://127.0.0.1:8000/> | Trang chủ giới thiệu SmartCRM |
 | <http://127.0.0.1:8000/admin/> | Wagtail Admin, menu **CRM** (Khách hàng, Đơn hàng, Lịch sử tương tác) và **Mở SmartCRM** |
-| <http://127.0.0.1:8000/crm/> | Tổng quan: 4 thẻ số liệu + 5 tương tác mới nhất |
-| <http://127.0.0.1:8000/crm/customers/> | Danh sách khách: tìm theo tên/email/SĐT, lọc trạng thái, 10 khách/trang |
-| `/crm/customers/<id>/` | Chi tiết khách + khối **✨ Gợi ý phản hồi AI** + timeline |
+| <http://127.0.0.1:8000/crm/> | Tổng quan: 4 thẻ số liệu + 5 tương tác mới nhất + Khách hàng ưu tiên cao |
+| <http://127.0.0.1:8000/crm/customers/> | Danh sách khách: tìm theo tên/email/SĐT, lọc trạng thái và ưu tiên AI, 10 khách/trang |
+| `/crm/customers/<id>/` | Chi tiết khách + khối **✨ Gợi ý phản hồi AI** + khối **✨ Phân loại AI** + timeline |
 | `POST /crm/api/customers/<id>/suggest-reply/` | Vào `{message, tone}`, ra `{ok, reply, mock, provider}` (`provider` = tên AI đã trả lời) |
 | `POST /crm/api/customers/<id>/save-interaction/` | Vào `{message, ai_suggested_reply, final_reply, channel}`, ra `{ok, id, interaction_html}` |
+| `POST /crm/api/customers/<id>/analyze/` | Ra `{ok, data, mock, provider}` kết quả phân loại khách hàng bằng AI |
+| `POST /crm/api/customers/<id>/apply-status/` | Đổi trạng thái khách hàng sang trạng thái AI đề xuất |
+| <http://127.0.0.1:8000/crm/reports/> | Trang **Báo cáo AI**, nhận định kinh doanh dựa trên số liệu tổng hợp |
+| `POST /crm/api/reports/generate/` | Sinh báo cáo nhận định bằng AI |
 
 Trang `/crm/` yêu cầu đăng nhập bằng tài khoản **staff**. Mã lỗi của API: `400` dữ liệu sai, `401` chưa đăng nhập,
 `403` không có quyền, `404` không có khách, `405` sai phương thức, `503` AI lỗi.
@@ -330,9 +334,9 @@ Danh sách model miễn phí và hạn mức do các nhà cung cấp tự thay �
 python manage.py test crm
 ```
 
-Kết quả hiện tại: **40 test – OK**. Mọi lời gọi Gemini đều được giả lập bằng `unittest.mock`, nên test **không gọi mạng** và không cần API key.
+Kết quả hiện tại: **48 test – OK**. Mọi lời gọi Gemini đều được giả lập bằng `unittest.mock`, nên test **không gọi mạng** và không cần API key.
 Nội dung kiểm thử: sinh mã đơn, `subtotal`, `total_amount`, `total_spent`; prompt chứa dữ liệu khách; exception → `AIServiceError`;
-chế độ MOCK; chuyển sang model/nhà cung cấp AI dự phòng khi Gemini lỗi; chưa đăng nhập bị chuyển hướng; API suggest-reply 200/400/404/405/503; save-interaction tạo bản ghi; tìm kiếm/lọc/phân trang.
+chế độ MOCK; chuyển sang model/nhà cung cấp AI dự phòng khi Gemini lỗi; chưa đăng nhập bị chuyển hướng; API suggest-reply 200/400/404/405/503; save-interaction tạo bản ghi; tìm kiếm/lọc/phân trang; API analyze/apply-status/generate-report.
 
 Kịch bản kiểm thử thủ công end-to-end (thêm khách ở Admin → AI gợi ý → lưu → xem lại ở Admin) nằm trong [docs/TEST_CASES.md](docs/TEST_CASES.md).
 

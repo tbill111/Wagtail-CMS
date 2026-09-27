@@ -12,7 +12,7 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
-from .models import Customer, InteractionLog, OrderItem
+from .models import AIReport, Customer, InteractionLog, OrderItem
 from .services import AIServiceError, get_ai_service
 from .services.ai_service import ALLOWED_TONES, DEFAULT_TONE
 
@@ -79,7 +79,9 @@ def dashboard(request):
             )
         )
     )["total"]
+    high_priority_customers = Customer.objects.filter(ai_priority="high").order_by("-ai_analyzed_at")[:5]
     context = {
+        "high_priority_customers": high_priority_customers,
         "stats": {
             "total_customers": Customer.objects.count(),
             "new_customers": Customer.objects.filter(created_at__gte=month_start).count(),
@@ -109,6 +111,12 @@ def customer_list(request):
     else:
         status = ""
 
+    priority = request.GET.get("priority", "").strip()
+    if priority in Customer.Priority.values:
+        customers = customers.filter(ai_priority=priority)
+    else:
+        priority = ""
+
     page_obj = Paginator(customers, 10).get_page(request.GET.get("page"))
     context = {
         "page_obj": page_obj,
@@ -116,6 +124,8 @@ def customer_list(request):
         "query": query,
         "status": status,
         "status_choices": Customer.Status.choices,
+        "priority": priority,
+        "priority_choices": Customer.Priority.choices,
     }
     return render(request, "crm/customer_list.html", context)
 
@@ -207,3 +217,98 @@ def api_save_interaction(request, pk):
         "crm/_interaction_item.html", {"interaction": interaction, "is_new": True}, request=request
     )
     return JsonResponse({"ok": True, "id": interaction.pk, "interaction_html": html}, status=201)
+
+
+@require_POST
+@api_staff_required
+def api_analyze_customer(request, pk):
+    customer = Customer.objects.filter(pk=pk).first()
+    if customer is None:
+        return json_error("Không tìm thấy khách hàng.", 404)
+    service = get_ai_service()
+    try:
+        result = service.analyze_customer(customer)
+    except AIServiceError as exc:
+        return json_error(str(exc), 503)
+    customer.refresh_from_db()  # reload ai_analyzed_at
+    from .templatetags.crm_tags import STATUS_BADGES
+    return JsonResponse({
+        "ok": True,
+        "data": {
+            "sentiment": result["sentiment"],
+            "sentiment_display": customer.get_ai_sentiment_display(),
+            "priority": result["priority"],
+            "priority_display": customer.get_ai_priority_display(),
+            "suggested_status": result["suggested_status"],
+            "suggested_status_display": customer.get_ai_suggested_status_display(),
+            "summary": result["summary"],
+            "next_actions": result["next_actions"],
+            "analyzed_at": customer.ai_analyzed_at.strftime("%d/%m/%Y %H:%M") if customer.ai_analyzed_at else "",
+        },
+        "mock": service.is_mock,
+        "provider": service.last_provider_label,
+    })
+
+
+@require_POST
+@api_staff_required
+def api_apply_status(request, pk):
+    customer = Customer.objects.filter(pk=pk).first()
+    if customer is None:
+        return json_error("Không tìm thấy khách hàng.", 404)
+    if not customer.ai_suggested_status:
+        return json_error("Chưa có đề xuất trạng thái từ AI.", 400)
+    if customer.ai_suggested_status == customer.status:
+        return json_error("Trạng thái đề xuất trùng với trạng thái hiện tại.", 400)
+    from .templatetags.crm_tags import STATUS_BADGES
+    customer.status = customer.ai_suggested_status
+    customer.save(update_fields=["status"])
+    return JsonResponse({
+        "ok": True,
+        "status": customer.status,
+        "status_display": customer.get_status_display(),
+        "badge_class": STATUS_BADGES.get(customer.status, "text-bg-secondary"),
+    })
+
+
+@require_GET
+@staff_required
+def report_page(request):
+    from .services.ai_service import GeminiCRMService
+    stats = GeminiCRMService.build_report_stats()
+    recent_reports = AIReport.objects.select_related("created_by").order_by("-created_at")[:5]
+    context = {
+        "stats": stats,
+        "recent_reports": recent_reports,
+        "ai_is_mock": get_ai_service().is_mock,
+    }
+    return render(request, "crm/report.html", context)
+
+
+@require_POST
+@api_staff_required
+def api_generate_report(request):
+    from .models import Customer
+    if Customer.objects.count() == 0:
+        return json_error("Chưa có dữ liệu khách hàng để tạo báo cáo.", 400)
+    service = get_ai_service()
+    try:
+        result = service.generate_report()
+    except AIServiceError as exc:
+        return json_error(str(exc), 503)
+    # Lưu lịch sử
+    AIReport.objects.create(
+        content=result["insight"],
+        stats=result["stats"],
+        provider=service.last_provider_label,
+        is_mock=service.is_mock,
+        created_by=request.user if request.user.is_authenticated else None,
+    )
+    return JsonResponse({
+        "ok": True,
+        "stats": result["stats"],
+        "insight": result["insight"],
+        "generated_at": result["generated_at"],
+        "mock": service.is_mock,
+        "provider": service.last_provider_label,
+    })

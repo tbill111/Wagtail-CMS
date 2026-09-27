@@ -1,0 +1,161 @@
+{% extends "crm/base.html" %}
+{% load crm_tags %}
+
+{% block title %}Báo cáo AI{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-1">Báo cáo AI ✨</h1>
+        <p class="text-muted mb-0">Phân tích tổng quan khách hàng bằng AI</p>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3 mb-3">
+        <div class="sc-card text-center h-100">
+            <h6 class="text-muted">Tổng khách hàng</h6>
+            <h3 class="mb-0">{{ stats.total_customers }}</h3>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="sc-card text-center h-100">
+            <h6 class="text-muted">Khách mới tháng</h6>
+            <h3 class="mb-0">{{ stats.new_customers_month }}</h3>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="sc-card text-center h-100">
+            <h6 class="text-muted">Doanh thu hoàn thành</h6>
+            <h3 class="mb-0">{{ stats.revenue|vnd }}</h3>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="sc-card text-center h-100 ai-card">
+            <h6 class="text-muted text-ai">Đã phân tích AI</h6>
+            <h3 class="mb-0 text-ai">{{ stats.analyzed_count }}</h3>
+        </div>
+    </div>
+</div>
+
+<div class="sc-card mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4 class="mb-0">Nhận định AI</h4>
+        <div id="report-actions">
+            {% if stats.total_customers > 0 %}
+                <button type="button" id="report-copy-btn" class="btn btn-outline-secondary btn-sm d-none me-2">📋 Sao chép báo cáo</button>
+                <button type="button" id="report-btn" class="btn btn-ai">✨ Tạo báo cáo nhận định</button>
+            {% endif %}
+        </div>
+    </div>
+    
+    {% if stats.total_customers > 0 %}
+        <div id="report-result" class="sc-card ai-card d-none" style="white-space: pre-line;">
+            <div id="report-insight"></div>
+            <div class="mt-3">
+                <span class="ai-badge ai-badge-sm" id="report-provider"></span>
+                <small class="text-muted ms-2" id="report-time"></small>
+            </div>
+        </div>
+    {% else %}
+        <div class="sc-empty">Chưa có dữ liệu khách hàng. Vui lòng thêm khách hàng trước.</div>
+    {% endif %}
+</div>
+
+{% if recent_reports %}
+<div class="sc-card mb-4">
+    <h4 class="mb-3">Báo cáo gần đây</h4>
+    <div class="table-responsive">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Thời gian</th>
+                    <th>Nhà cung cấp</th>
+                    <th>Nội dung</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for report in recent_reports %}
+                <tr>
+                    <td>{{ report.created_at|date:"d/m/Y H:i" }}</td>
+                    <td><span class="ai-badge ai-badge-sm">{{ report.provider }}{% if report.is_mock %} (Mô phỏng){% endif %}</span></td>
+                    <td>{{ report.insight|truncatechars:100 }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<div class="d-none" id="api-urls" data-generate-url="{% url 'crm:api_generate_report' %}"></div>
+{% csrf_token %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const generateUrl = document.getElementById("api-urls").getAttribute("data-generate-url");
+    const reportBtn = document.getElementById("report-btn");
+    const reportCopyBtn = document.getElementById("report-copy-btn");
+    const reportResult = document.getElementById("report-result");
+    const reportInsight = document.getElementById("report-insight");
+    const reportProvider = document.getElementById("report-provider");
+    const reportTime = document.getElementById("report-time");
+    
+    if (reportBtn) {
+        reportBtn.addEventListener("click", async function() {
+            if (typeof SmartCRM === 'undefined') {
+                console.error("SmartCRM is not defined");
+                return;
+            }
+            
+            SmartCRM.setLoading(reportBtn, true);
+            
+            try {
+                const response = await SmartCRM.postJSON(generateUrl, {});
+                
+                if (response.success) {
+                    reportResult.classList.remove("d-none");
+                    reportInsight.innerHTML = SmartCRM.escapeHTML(response.data.insight);
+                    
+                    let providerText = response.data.provider;
+                    if (response.data.is_mock) {
+                        providerText += " (chế độ mô phỏng)";
+                    }
+                    reportProvider.textContent = "AI: " + providerText;
+                    
+                    const now = new Date();
+                    reportTime.textContent = now.toLocaleString('vi-VN');
+                    
+                    reportCopyBtn.classList.remove("d-none");
+                    
+                    SmartCRM.showToast("Báo cáo AI đã được tạo", "success");
+                    reportBtn.innerHTML = "✨ Tạo lại báo cáo";
+                } else {
+                    SmartCRM.showToast(response.message || "Có lỗi xảy ra", "danger");
+                }
+            } catch (error) {
+                console.error(error);
+                SmartCRM.showToast("Có lỗi xảy ra khi gọi API", "danger");
+            } finally {
+                SmartCRM.setLoading(reportBtn, false);
+            }
+        });
+    }
+    
+    if (reportCopyBtn) {
+        reportCopyBtn.addEventListener("click", function() {
+            if (reportInsight && reportInsight.textContent) {
+                navigator.clipboard.writeText(reportInsight.textContent).then(function() {
+                    SmartCRM.showToast("Đã sao chép báo cáo", "success");
+                }).catch(function(err) {
+                    console.error('Không thể sao chép: ', err);
+                    SmartCRM.showToast("Không thể sao chép", "danger");
+                });
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

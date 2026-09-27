@@ -13,7 +13,7 @@
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
     <div class="d-flex align-items-center gap-2 flex-wrap">
         <h1 class="h3 mb-0">{{ customer.name }}</h1>
-        <span class="badge {{ customer.status|status_badge }}">{{ customer.get_status_display }}</span>
+        <span class="badge {{ customer.status|status_badge }}" id="customer-status-badge">{{ customer.get_status_display }}</span>
     </div>
     <a href="{% url 'wagtailsnippets_crm_customer:edit' customer.pk %}" class="btn btn-sm btn-outline-primary">Sửa trong Admin</a>
 </div>
@@ -63,7 +63,7 @@
     <div class="col-12 col-lg-7">
         {# ĐIỂM MỞ RỘNG: các khối AI mới (phân loại khách, báo cáo…) đặt ở đây, phía trên khối gợi ý phản hồi #}
         <div id="ai-extra-panels">
-            {% block ai_extra %}{% endblock %}
+            {% include "crm/_ai_classify_card.html" %}
         </div>
 
         <section class="sc-card ai-card mb-4" id="ai-reply-card"
@@ -135,6 +135,7 @@
 <script>
 document.addEventListener("DOMContentLoaded", function () {
     SmartCRM.initSuggestReply(document.getElementById("ai-reply-card"));
+    SmartCRM.initClassifyCard(document.getElementById("ai-classify-card"));
 });
 </script>
 {% endblock %}

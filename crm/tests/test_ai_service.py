@@ -215,3 +215,65 @@ class FallbackProviderTests(TestCase):
         payload = post.call_args.kwargs["json"]
         self.assertEqual(payload["response_format"], {"type": "json_object"})
         self.assertIn('"segment"', payload["messages"][0]["content"])
+
+class ClassifyCustomerTests(TestCase):
+    def setUp(self):
+        self.service = GeminiCRMService()
+
+    @override_settings(AI_MOCK=True)
+    def test_mock_classification_churned_is_high_priority(self):
+        customer = make_customer(status="churned")
+        result = self.service.analyze_customer(customer)
+        self.assertEqual(result["sentiment"], "negative")
+        self.assertEqual(result["priority"], "high")
+        self.assertEqual(customer.ai_priority, "high")
+        self.assertIsNotNone(customer.ai_analyzed_at)
+
+    def test_safe_defaults_when_ai_returns_invalid_data(self):
+        customer = make_customer(status="caring")
+        # Giả lập _generate_live trả về JSON thiếu/sai
+        with patch_client(fake_client('{"sentiment": "super_happy", "priority": "urgent", "suggested_status": "unknown"}')):
+            result = self.service._analyze_customer_live(customer)
+        self.assertEqual(result["sentiment"], "neutral")  # fallback
+        self.assertEqual(result["priority"], "medium")   # fallback
+        self.assertEqual(result["suggested_status"], "caring") # fallback to current status
+
+    @override_settings(AI_MOCK=True)
+    def test_mock_classification_format(self):
+        customer = make_customer(status="lead")
+        make_order(customer)
+        result = self.service.analyze_customer(customer)
+        self.assertIn("sentiment", result)
+        self.assertIn("priority", result)
+        self.assertIn("suggested_status", result)
+        self.assertIn("summary", result)
+        self.assertIsInstance(result["next_actions"], list)
+
+
+class ReportStatsTests(TestCase):
+    def setUp(self):
+        self.service = GeminiCRMService()
+
+    def test_build_report_stats_calculates_revenue_correctly(self):
+        customer = make_customer()
+        # Đơn hoàn thành -> doanh thu
+        make_order(customer, status=Order.Status.COMPLETED, items=[("SP1", 2, 100000), ("SP2", 1, 50000)]) # 250k
+        make_order(customer, status=Order.Status.COMPLETED, items=[("SP3", 1, 300000)]) # 300k
+        # Đơn huỷ -> không tính
+        make_order(customer, status=Order.Status.CANCELLED, items=[("SP4", 1, 1000000)])
+
+        stats = self.service.build_report_stats()
+        self.assertEqual(stats["revenue"], 550000)
+        self.assertEqual(stats["total_customers"], 1)
+
+    @override_settings(AI_MOCK=True)
+    def test_mock_report_generation(self):
+        customer = make_customer()
+        make_order(customer, status=Order.Status.COMPLETED, items=[("SP1", 1, 100000)])
+        
+        result = self.service.generate_report()
+        self.assertIn("stats", result)
+        self.assertIn("insight", result)
+        self.assertIn("TÌNH HÌNH CHUNG", result["insight"])
+        self.assertIn("100.000", result["insight"])
+

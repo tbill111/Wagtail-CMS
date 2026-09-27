@@ -327,6 +327,313 @@ Chỉ trả về nội dung email."""
             "Trân trọng,\nBộ phận Chăm sóc khách hàng"
         )
 
+    # ------------------------------------------------ Phân loại khách hàng AI
+    _VALID_SENTIMENTS = {"positive", "neutral", "negative"}
+    _VALID_PRIORITIES = {"high", "medium", "low"}
+
+    _CLASSIFY_SCHEMA = {
+        "type": "OBJECT",
+        "properties": {
+            "sentiment": {"type": "STRING", "enum": ["positive", "neutral", "negative"]},
+            "priority": {"type": "STRING", "enum": ["high", "medium", "low"]},
+            "suggested_status": {
+                "type": "STRING",
+                "enum": ["lead", "caring", "customer", "churned"],
+            },
+            "summary": {"type": "STRING"},
+            "next_actions": {"type": "ARRAY", "items": {"type": "STRING"}},
+        },
+        "required": ["sentiment", "priority", "suggested_status", "summary", "next_actions"],
+    }
+
+    def analyze_customer(self, customer):
+        """Phân loại khách hàng bằng AI: cảm xúc, mức ưu tiên, trạng thái đề xuất, tóm tắt, hành động."""
+        if self.is_mock:
+            self._state.provider = "AI Gemini"
+            result = self._mock_analysis(customer)
+        else:
+            result = self._analyze_customer_live(customer)
+
+        # Lưu vào CSDL
+        customer.ai_sentiment = result["sentiment"]
+        customer.ai_priority = result["priority"]
+        customer.ai_suggested_status = result["suggested_status"]
+        customer.ai_summary = result["summary"]
+        customer.ai_next_actions = result["next_actions"]
+        customer.ai_analyzed_at = timezone.now()
+        customer.save(
+            update_fields=[
+                "ai_sentiment", "ai_priority", "ai_suggested_status",
+                "ai_summary", "ai_next_actions", "ai_analyzed_at",
+            ]
+        )
+        return result
+
+    def _analyze_customer_live(self, customer):
+        """Gọi AI thật để phân tích khách hàng, validate kết quả."""
+        from crm.models import Customer
+
+        valid_statuses = set(Customer.Status.values)
+
+        prompt = f"""Bạn là chuyên gia phân tích CRM. Hãy phân tích khách hàng sau và trả về JSON:
+
+{self.build_customer_context(customer)}
+
+YÊU CẦU:
+1. sentiment: đánh giá cảm xúc qua lịch sử tương tác (positive / neutral / negative)
+2. priority: mức ưu tiên chăm sóc (high / medium / low)
+3. suggested_status: trạng thái nên chuyển sang (lead / caring / customer / churned)
+4. summary: tóm tắt ngắn gọn tối đa 3 câu bằng tiếng Việt
+5. next_actions: danh sách tối đa 3 hành động cụ thể nên làm, bằng tiếng Việt
+
+Chỉ dùng thông tin trong dữ liệu. KHÔNG bịa thêm.
+Trả về đúng một JSON object."""
+
+        text = self._generate(prompt, json_schema=self._CLASSIFY_SCHEMA)
+        data = self._parse_json_safe(text)
+
+        # Validate và áp dụng giá trị mặc định an toàn
+        sentiment = data.get("sentiment", "neutral")
+        if sentiment not in self._VALID_SENTIMENTS:
+            sentiment = "neutral"
+
+        priority = data.get("priority", "medium")
+        if priority not in self._VALID_PRIORITIES:
+            priority = "medium"
+
+        suggested_status = data.get("suggested_status", customer.status)
+        if suggested_status not in valid_statuses:
+            suggested_status = customer.status
+
+        summary = str(data.get("summary", ""))[:500]
+
+        next_actions = data.get("next_actions", [])
+        if not isinstance(next_actions, list):
+            next_actions = []
+        next_actions = [str(a) for a in next_actions[:3]]
+
+        return {
+            "sentiment": sentiment,
+            "priority": priority,
+            "suggested_status": suggested_status,
+            "summary": summary,
+            "next_actions": next_actions,
+        }
+
+    @staticmethod
+    def _parse_json_safe(text):
+        """Parse JSON từ AI, chịu được bọc ```json ... ```."""
+        text = text.strip()
+        # Loại bỏ markdown code fence
+        match = re.match(r"```(?:json)?\s*(.*?)\s*```", text, re.DOTALL)
+        if match:
+            text = match.group(1)
+        try:
+            data = json.loads(text)
+        except (json.JSONDecodeError, ValueError) as exc:
+            raise AIServiceError(
+                "AI trả về dữ liệu không đúng định dạng JSON. Vui lòng thử lại."
+            ) from exc
+        if not isinstance(data, dict):
+            raise AIServiceError("AI trả về dữ liệu không đúng cấu trúc. Vui lòng thử lại.")
+        return data
+
+    @staticmethod
+    def _mock_analysis(customer):
+        """Trả kết quả phân tích giả lập hợp lý dựa trên dữ liệu khách."""
+        order_count = customer.orders.count()
+        interaction_count = customer.interactions.count()
+        total_spent = int(customer.total_spent)
+
+        # Suy sentiment từ trạng thái
+        if customer.status == "churned":
+            sentiment = "negative"
+        elif total_spent > 5000000:
+            sentiment = "positive"
+        elif interaction_count > 2:
+            sentiment = "positive"
+        else:
+            sentiment = "neutral"
+
+        # Suy priority
+        if total_spent > 10000000 or customer.status == "churned":
+            priority = "high"
+        elif order_count >= 2:
+            priority = "medium"
+        else:
+            priority = "low"
+
+        # Đề xuất trạng thái
+        if customer.status == "lead" and interaction_count >= 2:
+            suggested_status = "caring"
+        elif customer.status == "caring" and order_count >= 1:
+            suggested_status = "customer"
+        else:
+            suggested_status = customer.status
+
+        summary = (
+            f"Khách hàng {customer.name} có {order_count} đơn hàng "
+            f"và {interaction_count} tương tác. "
+            f"Tổng chi tiêu: {format_vnd(total_spent)}."
+        )
+
+        actions = []
+        if customer.status == "lead":
+            actions.append("Gửi tài liệu giới thiệu sản phẩm")
+        if customer.status == "churned":
+            actions.append("Liên hệ lại để tìm hiểu nguyên nhân rời bỏ")
+        if order_count == 0:
+            actions.append("Tư vấn gói dịch vụ phù hợp")
+        if total_spent > 5000000:
+            actions.append("Đề xuất chương trình ưu đãi khách hàng thân thiết")
+        if not actions:
+            actions.append("Theo dõi và duy trì mối quan hệ")
+
+        return {
+            "sentiment": sentiment,
+            "priority": priority,
+            "suggested_status": suggested_status,
+            "summary": summary,
+            "next_actions": actions[:3],
+        }
+
+    # ------------------------------------------------ Báo cáo nhận định nhanh
+    @staticmethod
+    def build_report_stats():
+        """Tổng hợp số liệu từ CSDL để đưa vào báo cáo (không gọi AI)."""
+        from crm.models import Customer, Order, OrderItem
+
+        now = timezone.localtime()
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+        # Số khách theo trạng thái
+        customers_by_status = {}
+        for status_val, status_label in Customer.Status.choices:
+            customers_by_status[status_val] = {
+                "label": status_label,
+                "count": Customer.objects.filter(status=status_val).count(),
+            }
+        total_customers = Customer.objects.count()
+        new_customers_month = Customer.objects.filter(created_at__gte=month_start).count()
+
+        # Doanh thu đơn hoàn thành
+        from django.db.models import DecimalField as DF
+        from django.db.models import ExpressionWrapper as EW
+        from django.db.models import F as Fld
+        from django.db.models import Sum as Sm
+
+        revenue = OrderItem.objects.filter(
+            order__status=Order.Status.COMPLETED
+        ).aggregate(
+            total=Sm(
+                EW(Fld("quantity") * Fld("unit_price"), output_field=DF(max_digits=18, decimal_places=0))
+            )
+        )["total"]
+        revenue = int(revenue or 0)
+
+        # Số đơn theo trạng thái
+        orders_by_status = {}
+        for status_val, status_label in Order.Status.choices:
+            orders_by_status[status_val] = {
+                "label": status_label,
+                "count": Order.objects.filter(status=status_val).count(),
+            }
+
+        # Top 5 khách chi tiêu cao
+        top_customers = []
+        for c in Customer.objects.all():
+            spent = int(c.total_spent)
+            if spent > 0:
+                top_customers.append({"name": c.name, "spent": spent})
+        top_customers.sort(key=lambda x: x["spent"], reverse=True)
+        top_customers = top_customers[:5]
+
+        # Tỷ lệ cảm xúc AI
+        sentiment_counts = {}
+        for s_val, s_label in Customer.Sentiment.choices:
+            sentiment_counts[s_val] = {
+                "label": s_label,
+                "count": Customer.objects.filter(ai_sentiment=s_val).count(),
+            }
+        analyzed_count = Customer.objects.exclude(ai_sentiment="").count()
+
+        return {
+            "total_customers": total_customers,
+            "new_customers_month": new_customers_month,
+            "customers_by_status": customers_by_status,
+            "revenue": revenue,
+            "orders_by_status": orders_by_status,
+            "top_customers": top_customers,
+            "sentiment_counts": sentiment_counts,
+            "analyzed_count": analyzed_count,
+        }
+
+    def generate_report(self):
+        """Tạo báo cáo nhận định nhanh bằng AI dựa trên số liệu CSDL."""
+        stats = self.build_report_stats()
+        generated_at = timezone.now().isoformat()
+
+        if self.is_mock:
+            self._state.provider = "AI Gemini"
+            insight = self._mock_report(stats)
+        else:
+            insight = self._generate_report_live(stats)
+
+        return {
+            "stats": stats,
+            "insight": insight,
+            "generated_at": generated_at,
+        }
+
+    def _generate_report_live(self, stats):
+        """Gọi AI thật để viết nhận định dựa trên stats."""
+        stats_text = json.dumps(stats, ensure_ascii=False, indent=2)
+        prompt = f"""Bạn là chuyên gia phân tích kinh doanh CRM. Dựa trên số liệu thống kê sau, hãy viết nhận định ngắn gọn bằng tiếng Việt.
+
+SỐ LIỆU THỐNG KÊ:
+{stats_text}
+
+YÊU CẦU:
+- Viết nhận định văn bản thuần (không markdown, không bảng, không emoji).
+- Gồm 3 phần: Tình hình chung / Rủi ro cần chú ý / Đề xuất hành động.
+- Mỗi phần có tiêu đề rồi 2–4 gạch đầu dòng.
+- TUYỆT ĐỐI không bịa số liệu ngoài dữ liệu đã cung cấp.
+- Tổng khoảng 150–300 từ.
+
+Chỉ trả về nội dung nhận định."""
+
+        return self._generate(prompt)
+
+    @staticmethod
+    def _mock_report(stats):
+        """Trả nhận định mẫu dựa trên stats thật."""
+        total = stats["total_customers"]
+        revenue = stats["revenue"]
+        new_month = stats["new_customers_month"]
+        churned = stats["customers_by_status"].get("churned", {}).get("count", 0)
+        top = stats["top_customers"]
+        top_text = (
+            ", ".join(f'{c["name"]} ({format_vnd(c["spent"])})' for c in top[:3])
+            if top
+            else "chưa có"
+        )
+
+        return (
+            "TÌNH HÌNH CHUNG\n"
+            f"- Hệ thống hiện có {total} khách hàng, trong đó {new_month} khách mới trong tháng.\n"
+            f"- Doanh thu đơn hoàn thành đạt {format_vnd(revenue)}.\n"
+            f"- Top khách hàng chi tiêu cao: {top_text}.\n"
+            "\n"
+            "RỦI RO CẦN CHÚ Ý\n"
+            f"- Có {churned} khách hàng đã rời bỏ, cần tìm hiểu nguyên nhân.\n"
+            "- Một số tương tác của khách chưa được phản hồi.\n"
+            "\n"
+            "ĐỀ XUẤT HÀNH ĐỘNG\n"
+            "- Ưu tiên phản hồi các tin nhắn chưa được trả lời.\n"
+            "- Liên hệ lại khách hàng đã rời bỏ để giữ chân.\n"
+            "- Xây dựng chương trình ưu đãi cho khách hàng chi tiêu cao.\n"
+        )
+
 
 _service = None
 

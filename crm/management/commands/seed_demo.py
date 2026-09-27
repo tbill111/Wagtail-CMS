@@ -110,9 +110,12 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--reset", action="store_true", help="Xoá dữ liệu mẫu cũ trước khi tạo lại.")
+        parser.add_argument("--analyze", action="store_true", help="Gọi _mock_analysis() để tạo kết quả phân loại AI mô phỏng cho khách hàng.")
 
     @transaction.atomic
     def handle(self, *args, **options):
+        from crm.services.ai_service import GeminiCRMService
+
         demo_customers = Customer.objects.filter(email__endswith=f"@{DEMO_DOMAIN}")
         if options["reset"]:
             count = demo_customers.count()
@@ -174,6 +177,22 @@ class Command(BaseCommand):
                         created_at=now - timedelta(days=int_days, hours=len(message) % 9)
                     )
                     created["interactions"] += 1
+
+            if options.get("analyze"):
+                customer.refresh_from_db()
+                analysis = GeminiCRMService._mock_analysis(customer)
+                customer.ai_sentiment = analysis["sentiment"]
+                customer.ai_priority = analysis["priority"]
+                customer.ai_suggested_status = analysis["suggested_status"]
+                customer.ai_summary = analysis["summary"]
+                customer.ai_next_actions = analysis["next_actions"]
+                customer.ai_analyzed_at = now
+                customer.save(
+                    update_fields=[
+                        "ai_sentiment", "ai_priority", "ai_suggested_status",
+                        "ai_summary", "ai_next_actions", "ai_analyzed_at",
+                    ]
+                )
 
         self.stdout.write(
             self.style.SUCCESS(

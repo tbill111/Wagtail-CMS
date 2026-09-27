@@ -202,6 +202,163 @@
         });
     }
 
+    // ------------------------------------------------ Tính năng: Phân loại khách hàng AI
+    function initClassifyCard(card) {
+        if (!card) return;
+        var analyzeUrl = card.dataset.analyzeUrl;
+        var applyUrl = card.dataset.applyUrl;
+        var classifyBtn = card.querySelector("#classify-btn");
+        var emptyDiv = card.querySelector("#classify-empty");
+        var resultDiv = card.querySelector("#classify-result");
+        var sentimentBadge = card.querySelector("#classify-sentiment");
+        var priorityBadge = card.querySelector("#classify-priority");
+        var summaryEl = card.querySelector("#classify-summary");
+        var actionsEl = card.querySelector("#classify-actions");
+        var timeEl = card.querySelector("#classify-time");
+        var providerLabel = card.querySelector("#classify-provider-label");
+        var providerBadge = card.querySelector("#classify-provider-badge");
+        var statusSuggest = card.querySelector("#classify-status-suggest");
+        var suggestedLabel = card.querySelector("#classify-suggested-label");
+        var applyBtn = card.querySelector("#apply-status-btn");
+        var statusBadge = document.getElementById("customer-status-badge");
+
+        var SENTIMENT_MAP = {
+            positive: { text: "\ud83d\ude0a T\u00edch c\u1ef1c", cls: "text-bg-success" },
+            neutral:  { text: "\ud83d\ude10 Trung l\u1eadp", cls: "text-bg-secondary" },
+            negative: { text: "\ud83d\ude1f Ti\u00eau c\u1ef1c", cls: "text-bg-danger" }
+        };
+        var PRIORITY_MAP = {
+            high:   { text: "Cao", cls: "text-bg-danger" },
+            medium: { text: "Trung b\u00ecnh", cls: "text-bg-warning" },
+            low:    { text: "Th\u1ea5p", cls: "text-bg-success" }
+        };
+
+        function renderResult(data, mock, provider) {
+            var s = SENTIMENT_MAP[data.sentiment] || SENTIMENT_MAP.neutral;
+            sentimentBadge.className = "badge " + s.cls;
+            sentimentBadge.textContent = s.text;
+
+            var p = PRIORITY_MAP[data.priority] || PRIORITY_MAP.medium;
+            priorityBadge.className = "badge " + p.cls;
+            priorityBadge.textContent = p.text;
+
+            summaryEl.textContent = data.summary || "";
+            actionsEl.innerHTML = "";
+            (data.next_actions || []).forEach(function (action) {
+                var li = document.createElement("li");
+                li.textContent = action;
+                actionsEl.appendChild(li);
+            });
+            timeEl.textContent = "Ph\u00e2n t\u00edch l\u00fac: " + (data.analyzed_at || "");
+            var providerText = "Ph\u00e2n t\u00edch b\u1edfi " + (provider || "AI Gemini");
+            if (mock) providerText += " (ch\u1ebf \u0111\u1ed9 m\u00f4 ph\u1ecfng)";
+            providerLabel.textContent = providerText;
+            providerBadge.textContent = providerText;
+
+            if (data.suggested_status && data.suggested_status_display) {
+                suggestedLabel.textContent = data.suggested_status_display;
+                statusSuggest.classList.remove("d-none");
+            } else {
+                statusSuggest.classList.add("d-none");
+            }
+
+            if (emptyDiv) emptyDiv.classList.add("d-none");
+            resultDiv.classList.remove("d-none");
+        }
+
+        if (classifyBtn) {
+            classifyBtn.addEventListener("click", async function () {
+                setLoading(classifyBtn, true, "\u2728 AI \u0111ang ph\u00e2n t\u00edch\u2026");
+                try {
+                    var payload = await postJSON(analyzeUrl, {});
+                    renderResult(payload.data, payload.mock, payload.provider);
+                    classifyBtn.innerHTML = "\u2728 Ph\u00e2n t\u00edch l\u1ea1i";
+                    if (classifyBtn.dataset.originalHtml) {
+                        classifyBtn.dataset.originalHtml = "\u2728 Ph\u00e2n t\u00edch l\u1ea1i";
+                    }
+                    showToast("AI \u0111\u00e3 ph\u00e2n t\u00edch xong kh\u00e1ch h\u00e0ng.", "success");
+                } catch (err) {
+                    showToast(err.message, "danger");
+                } finally {
+                    setLoading(classifyBtn, false);
+                }
+            });
+        }
+
+        if (applyBtn) {
+            applyBtn.addEventListener("click", async function () {
+                setLoading(applyBtn, true, "\u0110ang \u00e1p d\u1ee5ng\u2026");
+                try {
+                    var payload = await postJSON(applyUrl, {});
+                    if (statusBadge) {
+                        statusBadge.className = "badge " + payload.badge_class;
+                        statusBadge.textContent = payload.status_display;
+                    }
+                    statusSuggest.classList.add("d-none");
+                    showToast("Tr\u1ea1ng th\u00e1i kh\u00e1ch h\u00e0ng \u0111\u00e3 \u0111\u01b0\u1ee3c c\u1eadp nh\u1eadt.", "success");
+                } catch (err) {
+                    showToast(err.message, "danger");
+                } finally {
+                    setLoading(applyBtn, false);
+                }
+            });
+        }
+    }
+
+    // ------------------------------------------------ Tính năng: Báo cáo AI
+    function initReportPage(container) {
+        if (!container) return;
+        var generateUrl = container.dataset.generateUrl;
+        var reportBtn = container.querySelector("#report-btn");
+        var copyBtn = container.querySelector("#report-copy-btn");
+        var resultDiv = container.querySelector("#report-result");
+        var insightEl = container.querySelector("#report-insight");
+        var providerEl = container.querySelector("#report-provider");
+        var timeEl = container.querySelector("#report-time");
+
+        if (reportBtn) {
+            reportBtn.addEventListener("click", async function () {
+                setLoading(reportBtn, true, "\u2728 AI \u0111ang t\u1ed5ng h\u1ee3p\u2026");
+                try {
+                    var payload = await postJSON(generateUrl, {});
+                    insightEl.textContent = payload.insight || "";
+                    var providerText = "Nh\u1eadn \u0111\u1ecbnh b\u1edfi " + (payload.provider || "AI Gemini");
+                    if (payload.mock) providerText += " (ch\u1ebf \u0111\u1ed9 m\u00f4 ph\u1ecfng)";
+                    providerEl.textContent = providerText;
+                    timeEl.textContent = "T\u1ea1o l\u00fac: " + new Date(payload.generated_at).toLocaleString("vi-VN");
+                    resultDiv.classList.remove("d-none");
+                    if (copyBtn) copyBtn.classList.remove("d-none");
+                    showToast("B\u00e1o c\u00e1o AI \u0111\u00e3 \u0111\u01b0\u1ee3c t\u1ea1o.", "success");
+                } catch (err) {
+                    showToast(err.message, "danger");
+                } finally {
+                    setLoading(reportBtn, false);
+                }
+            });
+        }
+
+        if (copyBtn) {
+            copyBtn.addEventListener("click", async function () {
+                var text = insightEl ? insightEl.textContent : "";
+                try {
+                    if (navigator.clipboard && window.isSecureContext) {
+                        await navigator.clipboard.writeText(text);
+                    } else {
+                        var ta = document.createElement("textarea");
+                        ta.value = text;
+                        document.body.appendChild(ta);
+                        ta.select();
+                        document.execCommand("copy");
+                        document.body.removeChild(ta);
+                    }
+                    showToast("\u0110\u00e3 sao ch\u00e9p b\u00e1o c\u00e1o.", "success");
+                } catch (err) {
+                    showToast("Kh\u00f4ng sao ch\u00e9p \u0111\u01b0\u1ee3c. Vui l\u00f2ng ch\u1ecdn v\u00e0 sao ch\u00e9p th\u1ee7 c\u00f4ng.", "danger");
+                }
+            });
+        }
+    }
+
     // Xuất ra phạm vi toàn cục để các tính năng AI khác dùng lại
     window.SmartCRM = {
         getCookie: getCookie,
@@ -209,7 +366,9 @@
         setLoading: setLoading,
         showToast: showToast,
         escapeHTML: escapeHTML,
-        initSuggestReply: initSuggestReply
+        initSuggestReply: initSuggestReply,
+        initClassifyCard: initClassifyCard,
+        initReportPage: initReportPage
     };
     window.postJSON = postJSON;
     window.setLoading = setLoading;

@@ -26,6 +26,12 @@ Chế độ AI: chạy ở **chế độ mô phỏng** (không có `GEMINI_API_K
 | TC-13 | AI lỗi (key sai) | Đặt `GEMINI_API_KEY=abc`, `AI_MOCK=False`, khởi động lại → gợi ý phản hồi | Toast đỏ tiếng Việt "API key Gemini không hợp lệ…", API trả 503, không lộ key | Đạt (kiểm bằng unit test giả lập lỗi) |
 | TC-14 | Responsive | Mở trang chi tiết ở độ rộng 375px (DevTools) | Bố cục 1 cột, khối AI nằm trên timeline, không tràn ngang | Đạt |
 | TC-15 | AI dự phòng | Điền `FALLBACK_AI_*` (ví dụ Groq), xoá `GEMINI_API_KEY`, khởi động lại → gợi ý phản hồi | Email được soạn, nhãn "Gợi ý bởi Groq Llama 3.3" | Chưa chạy với key thật (chưa có key Groq); đã kiểm bằng unit test |
+| TC-16 | Phân loại KH AI | Mở chi tiết KH chưa phân tích → bấm **✨ Phân tích khách hàng** | Nút đổi trạng thái "Đang phân tích...", sau đó hiện kết quả: badge cảm xúc, badge ưu tiên, gợi ý chuyển trạng thái (nếu có), phần nhận định và hành động, cập nhật thời gian | Đạt |
+| TC-17 | Áp dụng trạng thái đề xuất | KH có trạng thái đề xuất khác hiện tại → bấm **Áp dụng** | Trạng thái ở cột trái lập tức cập nhật màu sắc và chữ, không tải lại trang, nút áp dụng ẩn đi | Đạt |
+| TC-18 | Danh sách và lọc ưu tiên | Mở `/crm/customers/`, chọn bộ lọc "Ưu tiên AI" = "Cao" | Bảng hiện cột Ưu tiên AI có badge màu, chỉ hiển thị danh sách khách có ưu tiên cao | Đạt |
+| TC-19 | Xem khách ưu tiên trên Dashboard | Mở `/crm/` | Dashboard hiển thị bảng "Khách hàng cần chú ý (Ưu tiên Cao)" bên cạnh bảng "5 tương tác mới nhất" | Đạt |
+| TC-20 | Báo cáo AI | Mở `/crm/reports/` → bấm **✨ Tạo báo cáo nhận định** | Các thẻ số liệu hiển thị đúng; sinh ra phần text báo cáo dạng markdown hiển thị đẹp, nút "Sao chép" xuất hiện | Đạt |
+| TC-21 | Xem lại báo cáo trong Admin | Admin → **CRM → Báo cáo AI** | Báo cáo vừa tạo hiển thị read-only, đúng thông tin provider, is_mock, ngày tạo và người tạo | Đạt |
 
 ## 2. Kiểm thử tự động
 
@@ -35,6 +41,6 @@ Chạy: `python manage.py test crm` — mọi lời gọi Gemini đều được
 |---|---|---|
 | Model | `crm/tests/test_models.py` | Sinh mã đơn `DH-YYYYMMDD-0001` và tăng dần; `subtotal`; `total_amount`; `total_spent` chỉ tính đơn Hoàn thành; thứ tự tương tác |
 | AI service | `crm/tests/test_ai_service.py` | Prompt chứa dữ liệu khách/đơn/tin nhắn/giọng văn; model quá tải (503) tự chuyển sang model dự phòng; Gemini lỗi thì chuyển sang AI dự phòng tương thích OpenAI (Groq/OpenRouter/DeepSeek), xử lý lỗi 402/mạng, bỏ thẻ `<think>`; exception SDK → `AIServiceError` (không lộ key); phản hồi rỗng; `json_schema` → `application/json`; client lazy; chế độ MOCK |
-| Views/API | `crm/tests/test_views.py` | Chưa đăng nhập → chuyển hướng; user không phải staff bị chặn; API suggest-reply 200/400/404/405/503; mock end-to-end; save-interaction tạo bản ghi + trả HTML; tìm kiếm/lọc/phân trang |
+| Views/API | `crm/tests/test_views.py` | Chưa đăng nhập → chuyển hướng; user không phải staff bị chặn; API suggest-reply 200/400/404/405/503; mock end-to-end; save-interaction tạo bản ghi + trả HTML; tìm kiếm/lọc/phân trang; API analyze/apply-status/generate-report trả về đúng cấu trúc và cập nhật DB |
 
-Kết quả lần chạy gần nhất: **40 test – OK** (xem README mục "Chạy kiểm thử").
+Kết quả lần chạy gần nhất: **48 test – OK** (xem README mục "Chạy kiểm thử").
