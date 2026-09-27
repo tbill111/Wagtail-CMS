@@ -30,17 +30,27 @@ Chế độ AI: chạy ở **chế độ mô phỏng** (không có `GEMINI_API_K
 | TC-17 | Áp dụng trạng thái đề xuất | KH có trạng thái đề xuất khác hiện tại → bấm **Áp dụng** | Trạng thái ở cột trái lập tức cập nhật màu sắc và chữ, không tải lại trang, nút áp dụng ẩn đi | Đạt |
 | TC-18 | Danh sách và lọc ưu tiên | Mở `/crm/customers/`, chọn bộ lọc "Ưu tiên AI" = "Cao" | Bảng hiện cột Ưu tiên AI có badge màu, chỉ hiển thị danh sách khách có ưu tiên cao | Đạt |
 | TC-19 | Xem khách ưu tiên trên Dashboard | Mở `/crm/` | Dashboard hiển thị bảng "Khách hàng cần chú ý (Ưu tiên Cao)" bên cạnh bảng "5 tương tác mới nhất" | Đạt |
-| TC-20 | Báo cáo AI | Mở `/crm/reports/` → bấm **✨ Tạo báo cáo nhận định** | Các thẻ số liệu hiển thị đúng; sinh ra phần text báo cáo dạng markdown hiển thị đẹp, nút "Sao chép" xuất hiện | Đạt |
+| TC-20 | Báo cáo AI | Mở `/crm/reports/` → bấm **✨ Tạo báo cáo nhận định** | Các thẻ số liệu hiển thị đúng; sinh ra phần text báo cáo dạng văn bản thuần hiển thị đẹp, nút "Sao chép" xuất hiện | Đạt |
 | TC-21 | Xem lại báo cáo trong Admin | Admin → **CRM → Báo cáo AI** | Báo cáo vừa tạo hiển thị read-only, đúng thông tin provider, is_mock, ngày tạo và người tạo | Đạt |
 
-## 2. Kiểm thử tự động
+## 2. Ma trận kiểm tra các chế độ AI (cả 3 tính năng)
+
+| Chế độ | Cấu hình `.env` | Kỳ vọng | Kết quả thực tế |
+|---|---|---|---|
+| **1. MOCK** | `AI_MOCK=True` | 200, `mock: true`, giao diện hiện "(chế độ mô phỏng)", không gọi Internet | **Đạt** (hoạt động đầy đủ cả 3 tính năng, seed_demo chạy chuẩn) |
+| **2. Gemini thật** | `AI_MOCK=False`, có `GEMINI_API_KEY` | 200, `mock: false`, `provider: "AI Gemini"`, phân loại và nhận định dựa trên số liệu thật | **Đạt** (gọi API Gemini `gemini-3.8-flash` với JSON schema thành công) |
+| **3. AI dự phòng** | Xoá `GEMINI_API_KEY`, điền `FALLBACK_AI_*` (Groq/OpenRouter) | 200, `provider` = `FALLBACK_AI_NAME`, parse JSON phân loại an toàn | **Đạt** (kiểm thử qua unit test mock client OpenAI-compatible và loại bỏ thẻ markdown/think) |
+| **4. Key sai** | `GEMINI_API_KEY=abc`, không có dự phòng | 503, toast đỏ tiếng Việt, không lộ key | **Đạt** (AIServiceError bắt lỗi chuẩn, ẩn thông tin nhạy cảm) |
+| **5. Gemini quá tải / hết quota** | Giả lập lỗi 503 / 429 | Tự động chuyển qua model fallback hoặc AI dự phòng | **Đạt** (unit test kiểm tra luồng fallback trơn tru) |
+
+## 3. Kiểm thử tự động
 
 Chạy: `python manage.py test crm` — mọi lời gọi Gemini đều được giả lập bằng `unittest.mock`, **không gọi mạng**.
 
 | Nhóm | File | Nội dung chính |
 |---|---|---|
 | Model | `crm/tests/test_models.py` | Sinh mã đơn `DH-YYYYMMDD-0001` và tăng dần; `subtotal`; `total_amount`; `total_spent` chỉ tính đơn Hoàn thành; thứ tự tương tác |
-| AI service | `crm/tests/test_ai_service.py` | Prompt chứa dữ liệu khách/đơn/tin nhắn/giọng văn; model quá tải (503) tự chuyển sang model dự phòng; Gemini lỗi thì chuyển sang AI dự phòng tương thích OpenAI (Groq/OpenRouter/DeepSeek), xử lý lỗi 402/mạng, bỏ thẻ `<think>`; exception SDK → `AIServiceError` (không lộ key); phản hồi rỗng; `json_schema` → `application/json`; client lazy; chế độ MOCK |
-| Views/API | `crm/tests/test_views.py` | Chưa đăng nhập → chuyển hướng; user không phải staff bị chặn; API suggest-reply 200/400/404/405/503; mock end-to-end; save-interaction tạo bản ghi + trả HTML; tìm kiếm/lọc/phân trang; API analyze/apply-status/generate-report trả về đúng cấu trúc và cập nhật DB |
+| AI service | `crm/tests/test_ai_service.py` | Prompt chứa dữ liệu khách/đơn/tin nhắn/giọng văn; model quá tải (503) tự chuyển sang model dự phòng; Gemini lỗi thì chuyển sang AI dự phòng tương thích OpenAI (Groq/OpenRouter/DeepSeek), xử lý lỗi 402/mạng, bỏ thẻ `<think>`; exception SDK → `AIServiceError` (không lộ key); phản hồi rỗng; `json_schema` → `application/json`; client lazy; chế độ MOCK; Phân loại khách hàng AI: giá trị mặc định an toàn, cắt 3 hành động, không tự đổi trạng thái; Báo cáo nhận định: tính doanh thu, không có `Decimal` trong stats; tạo nhận định mock |
+| Views/API | `crm/tests/test_views.py` | Chưa đăng nhập → chuyển hướng; user không phải staff bị chặn; API suggest-reply 200/400/404/405/503; mock end-to-end; save-interaction tạo bản ghi + trả HTML; tìm kiếm/lọc/phân trang; API analyze/apply-status/generate-report trả về đúng cấu trúc và cập nhật DB; kiểm tra mã lỗi 404, 405, 400 và liên kết navbar |
 
-Kết quả lần chạy gần nhất: **48 test – OK** (xem README mục "Chạy kiểm thử").
+Kết quả lần chạy gần nhất: **53 test – OK** (xem README mục "Chạy kiểm thử").

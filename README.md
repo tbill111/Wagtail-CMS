@@ -3,24 +3,25 @@
 **Đề tài:** Xây dựng hệ thống CRM thông minh tích hợp trợ lý AI Gemini trên nền tảng Wagtail CMS
 **Môn học:** Hệ thống kinh doanh thông minh – Trường Đại học Thủy Lợi – Nhóm 3
 
-SmartCRM là một hệ thống CRM (quản trị quan hệ khách hàng) cơ bản xây dựng trên **Wagtail CMS**.
-Nhân viên quản lý khách hàng, đơn hàng trong Wagtail Admin; khi khách gửi tin nhắn, **Google Gemini**
-đọc dữ liệu thật của khách (trạng thái, tổng chi tiêu, đơn hàng, lịch sử tương tác) để **gợi ý email phản hồi**.
-Nhân viên chỉnh sửa gợi ý rồi lưu lại. Bản ghi được lưu vào CSDL và xem lại được trong Admin.
+SmartCRM là một hệ thống CRM (quản trị quan hệ khách hàng) cơ bản xây dựng trên **Wagtail CMS**, tích hợp trợ lý AI thông minh:
+1. **Gợi ý email phản hồi**: Đọc dữ liệu thật của khách (trạng thái, tổng chi tiêu, đơn hàng, lịch sử tương tác) để gợi ý phản hồi theo nhiều giọng văn.
+2. **Phân loại khách hàng AI**: Phân tích cảm xúc tương tác (Tích cực / Trung lập / Tiêu cực), mức độ ưu tiên (Cao / Trung bình / Thấp), đề xuất trạng thái và tóm tắt hành động tiếp theo.
+3. **Báo cáo nhận định nhanh AI**: Tự động tổng hợp số liệu CSDL và đưa ra nhận định kinh doanh 3 phần: Tình hình chung, Rủi ro cần chú ý, Đề xuất hành động.
 
 ## Mục lục
 1. [Luồng dữ liệu](#1-luồng-dữ-liệu)
 2. [Checklist 01–05 ↔ file](#2-checklist-0105--file)
-3. [Yêu cầu hệ thống](#3-yêu-cầu-hệ-thống)
-4. [Cài đặt từng bước](#4-cài-đặt-từng-bước)
-5. [Các URL chính](#5-các-url-chính)
-6. [Hướng dẫn sử dụng & kiểm thử chi tiết](#6-hướng-dẫn-sử-dụng--kiểm-thử-chi-tiết)
-7. [Chạy kiểm thử](#7-chạy-kiểm-thử)
-8. [Chế độ MOCK & xử lý sự cố](#8-chế-độ-mock--xử-lý-sự-cố)
-9. [Bảo mật](#9-bảo-mật)
-10. [Hướng dẫn mở rộng tính năng AI](#10-hướng-dẫn-mở-rộng-tính-năng-ai)
-11. [Ảnh chụp màn hình](#11-ảnh-chụp-màn-hình)
-12. [Cấu trúc thư mục](#12-cấu-trúc-thư-mục)
+3. [Phân công nhiệm vụ](#3-phân-công-nhiệm-vụ)
+4. [Yêu cầu hệ thống](#4-yêu-cầu-hệ-thống)
+5. [Cài đặt từng bước](#5-cài-đặt-từng-bước)
+6. [Các URL chính](#6-các-url-chính)
+7. [Hướng dẫn sử dụng & kiểm thử chi tiết](#7-hướng-dẫn-sử-dụng--kiểm-thử-chi-tiết)
+8. [Chạy kiểm thử](#8-chạy-kiểm-thử)
+9. [Chế độ MOCK & xử lý sự cố](#9-chế-độ-mock--xử-lý-sự-cố)
+10. [Bảo mật](#10-bảo-mật)
+11. [Hướng dẫn mở rộng tính năng AI](#11-hướng-dẫn-mở-rộng-tính-năng-ai)
+12. [Ảnh chụp màn hình](#12-ảnh-chụp-màn-hình)
+13. [Cấu trúc thư mục](#13-cấu-trúc-thư-mục)
 
 ---
 
@@ -28,15 +29,15 @@ Nhân viên chỉnh sửa gợi ý rồi lưu lại. Bản ghi được lưu và
 
 ```mermaid
 flowchart LR
-    A["👤 Nhân viên<br/>Wagtail Admin"] -->|"Thêm / sửa<br/>Khách hàng, Đơn hàng"| DB[("SQLite<br/>Customer · Order<br/>OrderItem · InteractionLog")]
-    DB -->|"Hiển thị"| F["🖥️ Frontend /crm/<br/>Chi tiết khách hàng"]
-    F -->|"POST suggest-reply<br/>(tin nhắn + giọng văn)"| V["views.py"]
-    V --> S["GeminiCRMService<br/>build_customer_context()"]
-    DB -->|"Thông tin khách, 5 đơn,<br/>5 tương tác gần nhất"| S
-    S -->|"prompt"| G["✨ Google Gemini<br/>gemini-3.8-flash<br/>(hoặc MOCK)"]
-    G -->|"Email gợi ý"| F
-    F -->|"Sửa rồi POST save-interaction"| V
-    V -->|"Tạo InteractionLog"| DB
+    A["👤 Nhân viên<br/>Wagtail Admin"] -->|"Thêm / sửa<br/>Khách hàng, Đơn hàng"| DB[("SQLite<br/>Customer · Order<br/>OrderItem · InteractionLog<br/>AIReport")]
+    DB -->|"Hiển thị"| F["🖥️ Frontend /crm/<br/>Chi tiết khách hàng · Báo cáo"]
+    F -->|"POST suggest-reply / analyze / generate"| V["views.py"]
+    V --> S["GeminiCRMService<br/>build_customer_context()<br/>build_report_stats()"]
+    DB -->|"Dữ liệu khách hàng & số liệu"| S
+    S -->|"prompt + schema"| G["✨ Google Gemini<br/>gemini-3.8-flash<br/>(hoặc MOCK / Dự phòng)"]
+    G -->|"Kết quả JSON / Nhận định"| F
+    F -->|"Lưu tương tác / Đổi trạng thái / Báo cáo"| V
+    V -->|"Cập nhật Customer / AIReport / Log"| DB
     DB -->|"Xem lại"| A
 ```
 
@@ -45,10 +46,15 @@ flowchart LR
 | # | Yêu cầu | Trạng thái | File / thư mục chính |
 |---|---|---|---|
 | 01 | Cài đặt môi trường Python và khởi tạo dự án Wagtail CMS | ✅ | `requirements.txt`, `manage.py`, `smartcrm/settings/base.py` (vi, Asia/Ho_Chi_Minh, `WAGTAIL_SITE_NAME`, đọc `.env`), `.env.example`, `.gitignore` |
-| 02 | Model tùy chỉnh lưu khách hàng, đơn hàng | ✅ | `crm/models.py` (Customer, Order, OrderItem, InteractionLog), `crm/wagtail_hooks.py` (SnippetViewSet, nhóm menu "CRM", menu "Mở SmartCRM"), `crm/migrations/` |
-| 03 | Tích hợp API AI – gợi ý phản hồi email | ✅ | `crm/services/ai_service.py` (`GeminiCRMService`, `AIServiceError`, `get_ai_service`) |
-| 04 | Giao diện Frontend tương tác với AI | ✅ | `crm/views.py`, `crm/urls.py`, `crm/templates/crm/*.html`, `crm/static/crm/js/ai.js`, `crm/static/crm/css/smartcrm.css`, `home/templates/home/home_page.html` |
-| 05 | Kiểm thử luồng & tài liệu triển khai | ✅ | `crm/tests/` (40 unit test), `crm/management/commands/seed_demo.py`, `docs/TEST_CASES.md`, `docs/screenshots/`, `README.md` |
+| 02 | Model tùy chỉnh lưu khách hàng, đơn hàng, báo cáo AI | ✅ | `crm/models.py` (Customer + các trường `ai_*`, Order, OrderItem, InteractionLog, AIReport), `crm/wagtail_hooks.py` (CustomerViewSet, OrderViewSet, InteractionLogViewSet, AIReportViewSet), `crm/migrations/` (0001_initial, 0002_ai_classify_report) |
+| 03 | Tích hợp API AI – gợi ý email, phân loại KH, báo cáo nhận định | ✅ | `crm/services/ai_service.py` (`GeminiCRMService`, `AIServiceError`, `get_ai_service`, phân loại & báo cáo nhanh, MOCK, fallback provider) |
+| 04 | Giao diện Frontend tương tác với AI | ✅ | `crm/views.py`, `crm/urls.py`, `crm/templates/crm/*.html` (`_ai_classify_card.html`, `report.html`), `crm/static/crm/js/ai.js` (`initSuggestReply`, `initClassifyCard`, `initReportPage`), `crm/static/crm/css/smartcrm.css` |
+| 05 | Kiểm thử luồng & tài liệu triển khai | ✅ | `crm/tests/` (53 unit test PASS), `crm/management/commands/seed_demo.py` (hỗ trợ `--analyze`), `docs/TEST_CASES.md`, `README.md` |
+
+## 3. Phân công nhiệm vụ
+
+- **Nhóm trưởng**: Thiết kế nền tảng hệ thống, Wagtail CMS base, CSDL ban đầu, tích hợp tính năng AI Gợi ý phản hồi email khách hàng, cơ chế AI Fallback.
+- **Thành viên 2**: Mở rộng CSDL với migration 0002, tích hợp tính năng AI Phân loại khách hàng (cảm xúc, độ ưu tiên, đề xuất trạng thái), tính năng AI Báo cáo nhận định nhanh, UI/UX các khối AI mới và kiểm thử luồng.
 
 ## 3. Yêu cầu hệ thống
 
@@ -216,11 +222,12 @@ Web chỉ mở được **trên chính máy đang chạy lệnh `runserver`**, v
 ### 6.4. Nạp dữ liệu mẫu (khuyến nghị trước khi demo)
 
 ```bash
-python manage.py seed_demo          # tạo 10 khách, 12 đơn, 20 tương tác (chạy lại nhiều lần không bị trùng)
-python manage.py seed_demo --reset  # xoá dữ liệu mẫu cũ rồi tạo lại từ đầu
+python manage.py seed_demo                    # tạo 10 khách, 12 đơn, 20 tương tác (chạy lại nhiều lần không bị trùng)
+python manage.py seed_demo --analyze          # nạp thêm dữ liệu phân loại AI mô phỏng (cảm xúc, ưu tiên, tóm tắt)
+python manage.py seed_demo --reset --analyze  # xoá dữ liệu mẫu cũ rồi tạo lại từ đầu kèm phân loại AI
 ```
 Dữ liệu mẫu dùng email đuôi `@demo.smartcrm.vn` và bao gồm đủ 4 trạng thái khách hàng (Tiềm năng, Đang chăm sóc, Đã mua hàng, Đã rời bỏ).
-`--reset` chỉ xoá khách mẫu, không động đến khách bạn tự thêm.
+`--reset` chỉ xoá khách mẫu, không động đến khách bạn tự thêm. Khi dùng `--analyze`, hệ thống chạy hoàn toàn ở chế độ MOCK nội bộ, không gọi ra ngoài và không tốn quota.
 
 ### 6.5. Kịch bản kiểm thử luồng chính (khoảng 5 phút)
 
@@ -243,7 +250,7 @@ Kịch bản này kiểm tra đủ luồng **Admin → AI → Frontend → lưu 
 2. Gõ tên khách vào ô tìm kiếm, bấm **Lọc**, rồi bấm **Chi tiết**.
 3. Kết quả:
    - **Cột trái**: thông tin khách, badge trạng thái màu vàng, đơn hàng vừa tạo, *Tổng chi tiêu* bằng tổng các đơn **Hoàn thành**.
-   - **Cột phải**: khối tím **✨ Gợi ý phản hồi AI**, và mục *Lịch sử tương tác* hiện "Chưa có tương tác nào".
+   - **Cột phải**: khối tím **✨ Gợi ý phản hồi AI**, khối **✨ Phân loại AI**, và mục *Lịch sử tương tác* hiện "Chưa có tương tác nào".
 
 **Bước 4 – Dùng AI gợi ý email phản hồi**
 1. Bấm **✨ Gợi ý phản hồi** khi ô tin nhắn còn trống. Kết quả: hiện thông báo vàng "Vui lòng nhập tin nhắn…" và không gửi yêu cầu nào.
@@ -263,16 +270,30 @@ Kịch bản này kiểm tra đủ luồng **Admin → AI → Frontend → lưu 
    - Tương tác mới xuất hiện **đầu tiên** trong *Lịch sử tương tác*, có nhãn **✨ AI hỗ trợ** và đúng nội dung **đã sửa**.
    - Các ô nhập được làm trống để soạn tin tiếp theo.
 
-**Bước 6 – Kiểm tra dữ liệu đã lưu ngược vào Admin**
+**Bước 6 – Thử tính năng Phân loại khách hàng AI**
+1. Ở khối **✨ Phân loại AI**, bấm **✨ Phân tích khách hàng**.
+2. Kết quả: hiển thị badge cảm xúc (😊/😐/😟), badge ưu tiên (Cao/Trung bình/Thấp), đoạn tóm tắt và danh sách hành động tiếp theo.
+3. Nếu có đề xuất trạng thái mới khác trạng thái hiện tại, bấm nút **Áp dụng**. Badge trạng thái trên đầu trang đổi ngay mà **không tải lại trang**.
+4. Vào Admin → **CRM → Khách hàng**, mở khách hàng sẽ thấy panel **Phân tích AI** đã ghi nhận các trường `ai_*` (dưới dạng chỉ xem).
+
+**Bước 7 – Thử tính năng Báo cáo nhận định nhanh AI**
+1. Trên thanh điều hướng, bấm **Báo cáo AI** (hoặc mở `/crm/reports/`).
+2. Xem các thẻ số liệu thống kê: Tổng khách hàng, Khách mới tháng, Doanh thu hoàn thành, Đã phân tích AI.
+3. Bấm **✨ Tạo báo cáo nhận định**. AI sẽ sinh báo cáo gồm 3 phần: *Tình hình chung*, *Rủi ro cần chú ý*, *Đề xuất hành động*.
+4. Bấm **📋 Sao chép báo cáo** để copy nội dung nhận định.
+5. Vào Admin → **CRM → Báo cáo AI**: xem lại bản ghi báo cáo đã lưu kèm số liệu JSON và người tạo.
+
+**Bước 8 – Kiểm tra dữ liệu đã lưu ngược vào Admin**
 1. Bấm **Vào Admin** trên thanh điều hướng, rồi chọn **CRM → Lịch sử tương tác**.
 2. Mở bản ghi mới nhất. Bản ghi có đủ: khách hàng, kênh, *Tin nhắn của khách*, *Gợi ý phản hồi của AI* (bản gốc), *Phản hồi đã gửi* (bản đã sửa), *Có dùng AI* được tích, *Nhân viên xử lý* là tài khoản đang đăng nhập.
-3. Quay lại <http://127.0.0.1:8000/crm/>. Thẻ **Tương tác 7 ngày qua** tăng thêm 1, và tương tác mới nằm đầu bảng.
+3. Quay lại <http://127.0.0.1:8000/crm/>. Thẻ **Tương tác 7 ngày qua** tăng thêm 1, bảng **Khách hàng cần chú ý (Ưu tiên Cao)** xuất hiện khách hàng ưu tiên cao.
 
-**Bước 7 – Các kiểm tra bổ sung**
+**Bước 9 – Các kiểm tra bổ sung**
 
 | Kiểm tra | Cách làm | Kết quả mong đợi |
 |---|---|---|
 | Lọc trạng thái | `/crm/customers/`, chọn "Đã rời bỏ", bấm **Lọc** | Chỉ hiện khách có badge đỏ |
+| Lọc ưu tiên AI | `/crm/customers/`, chọn Ưu tiên AI "Cao", bấm **Lọc** | Chỉ hiện khách hàng có mức ưu tiên Cao |
 | Tìm theo SĐT | Gõ `0901234567` (khách mẫu) | Ra đúng 1 khách |
 | Phân trang | Có hơn 10 khách | Mỗi trang 10 khách, chuyển trang vẫn giữ bộ lọc |
 | Chặn truy cập | Bấm **Đăng xuất**, rồi mở `/crm/` | Bị chuyển về trang đăng nhập |
@@ -334,9 +355,9 @@ Danh sách model miễn phí và hạn mức do các nhà cung cấp tự thay �
 python manage.py test crm
 ```
 
-Kết quả hiện tại: **48 test – OK**. Mọi lời gọi Gemini đều được giả lập bằng `unittest.mock`, nên test **không gọi mạng** và không cần API key.
+Kết quả hiện tại: **53 test – OK**. Mọi lời gọi Gemini đều được giả lập bằng `unittest.mock`, nên test **không gọi mạng** và không cần API key.
 Nội dung kiểm thử: sinh mã đơn, `subtotal`, `total_amount`, `total_spent`; prompt chứa dữ liệu khách; exception → `AIServiceError`;
-chế độ MOCK; chuyển sang model/nhà cung cấp AI dự phòng khi Gemini lỗi; chưa đăng nhập bị chuyển hướng; API suggest-reply 200/400/404/405/503; save-interaction tạo bản ghi; tìm kiếm/lọc/phân trang; API analyze/apply-status/generate-report.
+chế độ MOCK; chuyển sang model/nhà cung cấp AI dự phòng khi Gemini lỗi; chưa đăng nhập bị chuyển hướng; API suggest-reply 200/400/404/405/503; save-interaction tạo bản ghi; tìm kiếm/lọc/phân trang; API analyze/apply-status/generate-report; quyền hạn; và liên kết navbar.
 
 Kịch bản kiểm thử thủ công end-to-end (thêm khách ở Admin → AI gợi ý → lưu → xem lại ở Admin) nằm trong [docs/TEST_CASES.md](docs/TEST_CASES.md).
 

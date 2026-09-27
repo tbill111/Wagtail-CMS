@@ -187,3 +187,45 @@ class AIAPIViewTests(TestCase):
         self.assertIsNotNone(report)
         self.assertEqual(report.created_by, self.staff)
         self.assertEqual(report.content, data["insight"])
+
+    def test_api_analyze_customer_404_and_405(self):
+        # 404 khi không tồn tại khách
+        resp_404 = self.post_json("/crm/api/customers/9999/analyze/")
+        self.assertEqual(resp_404.status_code, 404)
+        # 405 khi dùng GET
+        resp_405 = self.client.get(f"/crm/api/customers/{self.customer.pk}/analyze/")
+        self.assertEqual(resp_405.status_code, 405)
+
+    def test_api_apply_status_validation_errors(self):
+        # 400 khi chưa có đề xuất
+        self.customer.ai_suggested_status = ""
+        self.customer.save()
+        resp = self.post_json(f"/crm/api/customers/{self.customer.pk}/apply-status/")
+        self.assertEqual(resp.status_code, 400)
+
+        # 400 khi đề xuất trùng trạng thái hiện tại
+        self.customer.status = "lead"
+        self.customer.ai_suggested_status = "lead"
+        self.customer.save()
+        resp = self.post_json(f"/crm/api/customers/{self.customer.pk}/apply-status/")
+        self.assertEqual(resp.status_code, 400)
+
+    def test_api_generate_report_empty_db_returns_400(self):
+        # Xoá hết khách hàng
+        from crm.models import Customer
+        Customer.objects.all().delete()
+        resp = self.post_json("/crm/api/reports/generate/")
+        self.assertEqual(resp.status_code, 400)
+
+    def test_report_page_requires_login_and_has_nav_link(self):
+        # Chưa đăng nhập -> redirect
+        self.client.logout()
+        resp = self.client.get("/crm/reports/")
+        self.assertEqual(resp.status_code, 302)
+
+        # Đã đăng nhập staff -> 200 và có navbar link
+        self.client.force_login(self.staff)
+        resp = self.client.get("/crm/reports/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("Báo cáo AI", resp.content.decode("utf-8"))
+

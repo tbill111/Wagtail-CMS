@@ -1,3 +1,4 @@
+import json
 from unittest import mock
 
 import httpx
@@ -238,6 +239,30 @@ class ClassifyCustomerTests(TestCase):
         self.assertEqual(result["priority"], "medium")   # fallback
         self.assertEqual(result["suggested_status"], "caring") # fallback to current status
 
+    def test_next_actions_truncated_to_three_and_status_not_changed(self):
+        customer = make_customer(status="lead")
+        fake_json = json.dumps({
+            "sentiment": "positive",
+            "priority": "high",
+            "suggested_status": "customer",
+            "summary": "Tóm tắt mẫu",
+            "next_actions": ["A1", "A2", "A3", "A4", "A5"]
+        })
+        with patch_client(fake_client(fake_json)):
+            result = self.service.analyze_customer(customer)
+        self.assertEqual(len(result["next_actions"]), 3)
+        self.assertEqual(result["next_actions"], ["A1", "A2", "A3"])
+        customer.refresh_from_db()
+        # Không tự đổi status
+        self.assertEqual(customer.status, "lead")
+        self.assertEqual(customer.ai_suggested_status, "customer")
+
+    def test_invalid_json_raises_ai_service_error(self):
+        customer = make_customer()
+        with patch_client(fake_client("Đây không phải JSON")):
+            with self.assertRaises(AIServiceError):
+                self.service._analyze_customer_live(customer)
+
     @override_settings(AI_MOCK=True)
     def test_mock_classification_format(self):
         customer = make_customer(status="lead")
@@ -265,6 +290,9 @@ class ReportStatsTests(TestCase):
         stats = self.service.build_report_stats()
         self.assertEqual(stats["revenue"], 550000)
         self.assertEqual(stats["total_customers"], 1)
+        # Kiểm tra không có Decimal trong stats để không lỗi JSONField
+        json_str = json.dumps(stats)
+        self.assertIsInstance(json_str, str)
 
     @override_settings(AI_MOCK=True)
     def test_mock_report_generation(self):

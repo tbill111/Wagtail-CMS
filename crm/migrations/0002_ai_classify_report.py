@@ -64,7 +64,7 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name="AIReport",
             fields=[
-                ("id", models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
                 ("content", models.TextField(verbose_name="Nội dung nhận định")),
                 ("stats", models.JSONField(default=dict, verbose_name="Số liệu tổng hợp")),
                 ("provider", models.CharField(blank=True, max_length=100, verbose_name="Nhà cung cấp AI")),
