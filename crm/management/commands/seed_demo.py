@@ -110,7 +110,10 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--reset", action="store_true", help="Xoá dữ liệu mẫu cũ trước khi tạo lại.")
-        parser.add_argument("--analyze", action="store_true", help="Gọi _mock_analysis() để tạo kết quả phân loại AI mô phỏng cho khách hàng.")
+        parser.add_argument(
+            "--analyze", action="store_true",
+            help="Điền sẵn kết quả phân loại AI (luôn dùng MOCK, không gọi AI thật) cho khách mẫu.",
+        )
 
     @transaction.atomic
     def handle(self, *args, **options):
@@ -125,7 +128,7 @@ class Command(BaseCommand):
         User = get_user_model()
         staff = User.objects.filter(is_staff=True).order_by("id").first()
         now = timezone.now()
-        created = {"customers": 0, "orders": 0, "interactions": 0}
+        created = {"customers": 0, "orders": 0, "interactions": 0, "analyzed": 0}
 
         for name, prefix, phone, company, status, source, days_ago in CUSTOMERS:
             customer, is_new = Customer.objects.get_or_create(
@@ -178,26 +181,17 @@ class Command(BaseCommand):
                     )
                     created["interactions"] += 1
 
-            if options.get("analyze"):
-                customer.refresh_from_db()
-                analysis = GeminiCRMService._mock_analysis(customer)
-                customer.ai_sentiment = analysis["sentiment"]
-                customer.ai_priority = analysis["priority"]
-                customer.ai_suggested_status = analysis["suggested_status"]
-                customer.ai_summary = analysis["summary"]
-                customer.ai_next_actions = analysis["next_actions"]
-                customer.ai_analyzed_at = now
-                customer.save(
-                    update_fields=[
-                        "ai_sentiment", "ai_priority", "ai_suggested_status",
-                        "ai_summary", "ai_next_actions", "ai_analyzed_at",
-                    ]
+            if options["analyze"]:
+                # Luôn dùng kết quả MOCK – không gọi AI thật (tránh tốn quota khi .env có key)
+                GeminiCRMService.save_analysis(
+                    customer, GeminiCRMService._mock_analysis(customer), "AI Gemini (chế độ mô phỏng)"
                 )
+                created["analyzed"] += 1
 
         self.stdout.write(
             self.style.SUCCESS(
                 "Hoàn tất dữ liệu mẫu: thêm mới {customers} khách hàng, {orders} đơn hàng, "
-                "{interactions} tương tác.".format(**created)
+                "{interactions} tương tác; phân loại AI (mô phỏng) {analyzed} khách.".format(**created)
             )
         )
         self.stdout.write(

@@ -1,7 +1,6 @@
 from decimal import Decimal
 
 from django.conf import settings
-from django.contrib.auth import get_user_model
 from django.db import models, transaction
 from django.db.models import DecimalField, ExpressionWrapper, F, Sum
 from django.utils import timezone
@@ -23,7 +22,17 @@ class Customer(models.Model):
         REFERRAL = "referral", "Giới thiệu"
         OTHER = "other", "Khác"
 
-    name = models.CharField("Họ và tên", max_length=150)
+    class Sentiment(models.TextChoices):
+        POSITIVE = "positive", "Tích cực"
+        NEUTRAL = "neutral", "Trung lập"
+        NEGATIVE = "negative", "Tiêu cực"
+
+    class Priority(models.TextChoices):
+        HIGH = "high", "Cao"
+        MEDIUM = "medium", "Trung bình"
+        LOW = "low", "Thấp"
+
+    name =models.CharField("Họ và tên", max_length=150)
     email = models.EmailField("Email", unique=True)
     phone = models.CharField("Số điện thoại", max_length=20, blank=True)
     company = models.CharField("Công ty", max_length=150, blank=True)
@@ -42,16 +51,7 @@ class Customer(models.Model):
         related_name="assigned_customers",
     )
 
-    class Sentiment(models.TextChoices):
-        POSITIVE = "positive", "Tích cực"
-        NEUTRAL = "neutral", "Trung lập"
-        NEGATIVE = "negative", "Tiêu cực"
-
-    class Priority(models.TextChoices):
-        HIGH = "high", "Cao"
-        MEDIUM = "medium", "Trung bình"
-        LOW = "low", "Thấp"
-
+    # Kết quả phân loại khách hàng bằng AI (do GeminiCRMService.analyze_customer ghi)
     ai_sentiment = models.CharField(
         "Cảm xúc AI", max_length=20, choices=Sentiment.choices, blank=True
     )
@@ -64,6 +64,7 @@ class Customer(models.Model):
     ai_summary = models.TextField("Tóm tắt AI", blank=True)
     ai_next_actions = models.JSONField("Hành động tiếp theo (AI)", default=list, blank=True)
     ai_analyzed_at = models.DateTimeField("Thời điểm phân tích AI", null=True, blank=True)
+    ai_provider = models.CharField("AI đã phân tích", max_length=100, blank=True)
 
     created_at = models.DateTimeField("Ngày tạo", auto_now_add=True)
     updated_at = models.DateTimeField("Cập nhật lần cuối", auto_now=True)

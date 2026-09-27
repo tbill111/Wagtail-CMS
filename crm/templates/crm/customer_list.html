@@ -69,7 +69,7 @@
                 <td><span class="badge {{ customer.status|status_badge }}">{{ customer.get_status_display }}</span></td>
                 <td>
                     {% if customer.ai_priority %}
-                    <span class="badge {% if customer.ai_priority == 'high' %}text-bg-danger{% elif customer.ai_priority == 'medium' %}text-bg-warning{% else %}text-bg-success{% endif %}">{{ customer.get_ai_priority_display }}</span>
+                    <span class="badge {{ customer.ai_priority|priority_badge }}">{{ customer.get_ai_priority_display }}</span>
                     {% else %}
                     <span class="text-muted">—</span>
                     {% endif %}

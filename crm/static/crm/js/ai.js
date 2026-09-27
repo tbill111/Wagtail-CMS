@@ -203,160 +203,154 @@
     }
 
     // ------------------------------------------------ Tính năng: Phân loại khách hàng AI
+    // Cùng bảng màu/nhãn với filter sentiment_badge / priority_badge trong crm_tags.py
+    const SENTIMENT_BADGES = {
+        positive: ["text-bg-success", "😊 Tích cực"],
+        neutral: ["text-bg-secondary", "😐 Trung lập"],
+        negative: ["text-bg-danger", "😟 Tiêu cực"]
+    };
+    const PRIORITY_BADGES = { high: "text-bg-danger", medium: "text-bg-warning", low: "text-bg-success" };
+
     function initClassifyCard(card) {
         if (!card) return;
-        var analyzeUrl = card.dataset.analyzeUrl;
-        var applyUrl = card.dataset.applyUrl;
-        var classifyBtn = card.querySelector("#classify-btn");
-        var emptyDiv = card.querySelector("#classify-empty");
-        var resultDiv = card.querySelector("#classify-result");
-        var sentimentBadge = card.querySelector("#classify-sentiment");
-        var priorityBadge = card.querySelector("#classify-priority");
-        var summaryEl = card.querySelector("#classify-summary");
-        var actionsEl = card.querySelector("#classify-actions");
-        var timeEl = card.querySelector("#classify-time");
-        var providerLabel = card.querySelector("#classify-provider-label");
-        var providerBadge = card.querySelector("#classify-provider-badge");
-        var statusSuggest = card.querySelector("#classify-status-suggest");
-        var suggestedLabel = card.querySelector("#classify-suggested-label");
-        var applyBtn = card.querySelector("#apply-status-btn");
-        var statusBadge = document.getElementById("customer-status-badge");
+        const $ = function (id) { return card.querySelector("#" + id); };
+        const analyzeBtn = $("classify-btn");
+        const applyBtn = $("apply-status-btn");
+        const suggestBox = $("classify-status-suggest");
+        let busy = false;
 
-        var SENTIMENT_MAP = {
-            positive: { text: "\ud83d\ude0a T\u00edch c\u1ef1c", cls: "text-bg-success" },
-            neutral:  { text: "\ud83d\ude10 Trung l\u1eadp", cls: "text-bg-secondary" },
-            negative: { text: "\ud83d\ude1f Ti\u00eau c\u1ef1c", cls: "text-bg-danger" }
-        };
-        var PRIORITY_MAP = {
-            high:   { text: "Cao", cls: "text-bg-danger" },
-            medium: { text: "Trung b\u00ecnh", cls: "text-bg-warning" },
-            low:    { text: "Th\u1ea5p", cls: "text-bg-success" }
-        };
+        function render(data, mock, provider) {
+            const sentiment = SENTIMENT_BADGES[data.sentiment] || SENTIMENT_BADGES.neutral;
+            $("classify-sentiment").className = "badge " + sentiment[0];
+            $("classify-sentiment").textContent = sentiment[1];
+            $("classify-priority").className = "badge " + (PRIORITY_BADGES[data.priority] || "text-bg-secondary");
+            $("classify-priority").textContent = data.priority_display;
+            $("classify-summary").textContent = data.summary || "";
 
-        function renderResult(data, mock, provider) {
-            var s = SENTIMENT_MAP[data.sentiment] || SENTIMENT_MAP.neutral;
-            sentimentBadge.className = "badge " + s.cls;
-            sentimentBadge.textContent = s.text;
-
-            var p = PRIORITY_MAP[data.priority] || PRIORITY_MAP.medium;
-            priorityBadge.className = "badge " + p.cls;
-            priorityBadge.textContent = p.text;
-
-            summaryEl.textContent = data.summary || "";
-            actionsEl.innerHTML = "";
+            const list = $("classify-actions");
+            list.replaceChildren();
             (data.next_actions || []).forEach(function (action) {
-                var li = document.createElement("li");
+                const li = document.createElement("li");
                 li.textContent = action;
-                actionsEl.appendChild(li);
+                list.appendChild(li);
             });
-            timeEl.textContent = "Ph\u00e2n t\u00edch l\u00fac: " + (data.analyzed_at || "");
-            var providerText = "Ph\u00e2n t\u00edch b\u1edfi " + (provider || "AI Gemini");
-            if (mock) providerText += " (ch\u1ebf \u0111\u1ed9 m\u00f4 ph\u1ecfng)";
-            providerLabel.textContent = providerText;
-            providerBadge.textContent = providerText;
+            $("classify-time").textContent = "Phân tích lúc: " + data.analyzed_at;
+            $("classify-provider").textContent = "Phân tích bởi " + (provider || "AI") + (mock ? " (chế độ mô phỏng)" : "");
+            $("classify-provider").classList.remove("d-none");
 
-            if (data.suggested_status && data.suggested_status_display) {
-                suggestedLabel.textContent = data.suggested_status_display;
-                statusSuggest.classList.remove("d-none");
-            } else {
-                statusSuggest.classList.add("d-none");
+            $("classify-suggested-label").textContent = data.suggested_status_display || "";
+            suggestBox.classList.toggle("d-none", !data.can_apply);
+
+            $("classify-empty").classList.add("d-none");
+            $("classify-result").classList.remove("d-none");
+        }
+
+        analyzeBtn.addEventListener("click", async function () {
+            if (busy) return;
+            busy = true;
+            setLoading(analyzeBtn, true, "✨ AI đang phân tích…");
+            if (applyBtn) applyBtn.disabled = true;
+            try {
+                const payload = await postJSON(card.dataset.analyzeUrl, {});
+                render(payload.data, payload.mock, payload.provider);
+                showToast("AI đã phân tích xong khách hàng.", "success");
+                analyzeBtn.dataset.originalHtml = "✨ Phân tích lại";
+            } catch (error) {
+                showToast(error.message, "danger");
+            } finally {
+                setLoading(analyzeBtn, false);
+                if (applyBtn) applyBtn.disabled = false;
+                busy = false;
             }
+        });
 
-            if (emptyDiv) emptyDiv.classList.add("d-none");
-            resultDiv.classList.remove("d-none");
-        }
-
-        if (classifyBtn) {
-            classifyBtn.addEventListener("click", async function () {
-                setLoading(classifyBtn, true, "\u2728 AI \u0111ang ph\u00e2n t\u00edch\u2026");
-                try {
-                    var payload = await postJSON(analyzeUrl, {});
-                    renderResult(payload.data, payload.mock, payload.provider);
-                    classifyBtn.innerHTML = "\u2728 Ph\u00e2n t\u00edch l\u1ea1i";
-                    if (classifyBtn.dataset.originalHtml) {
-                        classifyBtn.dataset.originalHtml = "\u2728 Ph\u00e2n t\u00edch l\u1ea1i";
-                    }
-                    showToast("AI \u0111\u00e3 ph\u00e2n t\u00edch xong kh\u00e1ch h\u00e0ng.", "success");
-                } catch (err) {
-                    showToast(err.message, "danger");
-                } finally {
-                    setLoading(classifyBtn, false);
+        applyBtn.addEventListener("click", async function () {
+            if (busy) return;
+            busy = true;
+            setLoading(applyBtn, true, "Đang áp dụng…");
+            analyzeBtn.disabled = true;
+            try {
+                const payload = await postJSON(card.dataset.applyUrl, {});
+                const badge = document.getElementById("customer-status-badge");
+                if (badge) {
+                    badge.className = "badge " + payload.badge_class;
+                    badge.textContent = payload.status_display;
                 }
-            });
-        }
-
-        if (applyBtn) {
-            applyBtn.addEventListener("click", async function () {
-                setLoading(applyBtn, true, "\u0110ang \u00e1p d\u1ee5ng\u2026");
-                try {
-                    var payload = await postJSON(applyUrl, {});
-                    if (statusBadge) {
-                        statusBadge.className = "badge " + payload.badge_class;
-                        statusBadge.textContent = payload.status_display;
-                    }
-                    statusSuggest.classList.add("d-none");
-                    showToast("Tr\u1ea1ng th\u00e1i kh\u00e1ch h\u00e0ng \u0111\u00e3 \u0111\u01b0\u1ee3c c\u1eadp nh\u1eadt.", "success");
-                } catch (err) {
-                    showToast(err.message, "danger");
-                } finally {
-                    setLoading(applyBtn, false);
-                }
-            });
-        }
+                suggestBox.classList.add("d-none");
+                showToast("Đã chuyển trạng thái sang “" + payload.status_display + "”.", "success");
+            } catch (error) {
+                showToast(error.message, "danger");
+            } finally {
+                setLoading(applyBtn, false);
+                analyzeBtn.disabled = false;
+                busy = false;
+            }
+        });
     }
 
     // ------------------------------------------------ Tính năng: Báo cáo AI
-    function initReportPage(container) {
-        if (!container) return;
-        var generateUrl = container.dataset.generateUrl;
-        var reportBtn = container.querySelector("#report-btn");
-        var copyBtn = container.querySelector("#report-copy-btn");
-        var resultDiv = container.querySelector("#report-result");
-        var insightEl = container.querySelector("#report-insight");
-        var providerEl = container.querySelector("#report-provider");
-        var timeEl = container.querySelector("#report-time");
+    function initReportPage(page) {
+        if (!page) return;
+        const reportBtn = page.querySelector("#report-btn");
+        const copyBtn = page.querySelector("#report-copy-btn");
+        const insightEl = page.querySelector("#report-insight");
+        if (!reportBtn) return; // CSDL chưa có khách: nút bị ẩn
 
-        if (reportBtn) {
-            reportBtn.addEventListener("click", async function () {
-                setLoading(reportBtn, true, "\u2728 AI \u0111ang t\u1ed5ng h\u1ee3p\u2026");
-                try {
-                    var payload = await postJSON(generateUrl, {});
-                    insightEl.textContent = payload.insight || "";
-                    var providerText = "Nh\u1eadn \u0111\u1ecbnh b\u1edfi " + (payload.provider || "AI Gemini");
-                    if (payload.mock) providerText += " (ch\u1ebf \u0111\u1ed9 m\u00f4 ph\u1ecfng)";
-                    providerEl.textContent = providerText;
-                    timeEl.textContent = "T\u1ea1o l\u00fac: " + new Date(payload.generated_at).toLocaleString("vi-VN");
-                    resultDiv.classList.remove("d-none");
-                    if (copyBtn) copyBtn.classList.remove("d-none");
-                    showToast("B\u00e1o c\u00e1o AI \u0111\u00e3 \u0111\u01b0\u1ee3c t\u1ea1o.", "success");
-                } catch (err) {
-                    showToast(err.message, "danger");
-                } finally {
-                    setLoading(reportBtn, false);
-                }
-            });
+        function prependHistoryRow(payload) {
+            const body = page.querySelector("#recent-reports-body");
+            const row = document.createElement("tr");
+            const provider = payload.provider + (payload.mock ? " (mô phỏng)" : "");
+            const content = payload.insight.length > 120 ? payload.insight.slice(0, 119) + "…" : payload.insight;
+            row.innerHTML =
+                '<td class="text-nowrap small">' + escapeHTML(payload.report.created_at) + "</td>" +
+                '<td><span class="ai-badge ai-badge-sm">' + escapeHTML(provider) + "</span></td>" +
+                '<td class="d-none d-md-table-cell small">' + escapeHTML(payload.report.created_by) + "</td>" +
+                '<td class="small text-muted">' + escapeHTML(content) + "</td>";
+            body.prepend(row);
+            while (body.rows.length > 5) body.deleteRow(-1);
+            page.querySelector("#recent-reports").classList.remove("d-none");
         }
 
-        if (copyBtn) {
-            copyBtn.addEventListener("click", async function () {
-                var text = insightEl ? insightEl.textContent : "";
-                try {
-                    if (navigator.clipboard && window.isSecureContext) {
-                        await navigator.clipboard.writeText(text);
-                    } else {
-                        var ta = document.createElement("textarea");
-                        ta.value = text;
-                        document.body.appendChild(ta);
-                        ta.select();
-                        document.execCommand("copy");
-                        document.body.removeChild(ta);
-                    }
-                    showToast("\u0110\u00e3 sao ch\u00e9p b\u00e1o c\u00e1o.", "success");
-                } catch (err) {
-                    showToast("Kh\u00f4ng sao ch\u00e9p \u0111\u01b0\u1ee3c. Vui l\u00f2ng ch\u1ecdn v\u00e0 sao ch\u00e9p th\u1ee7 c\u00f4ng.", "danger");
+        reportBtn.addEventListener("click", async function () {
+            if (reportBtn.disabled) return;
+            setLoading(reportBtn, true, "✨ AI đang tổng hợp…");
+            try {
+                const payload = await postJSON(page.dataset.generateUrl, {});
+                insightEl.textContent = payload.insight;
+                page.querySelector("#report-provider").textContent =
+                    "Nhận định bởi " + payload.provider + (payload.mock ? " (chế độ mô phỏng)" : "");
+                page.querySelector("#report-time").textContent =
+                    "Tạo lúc: " + new Date(payload.generated_at).toLocaleString("vi-VN");
+                page.querySelector("#report-empty").classList.add("d-none");
+                page.querySelector("#report-result").classList.remove("d-none");
+                copyBtn.classList.remove("d-none");
+                prependHistoryRow(payload);
+                showToast("Đã tạo báo cáo nhận định.", "success");
+            } catch (error) {
+                showToast(error.message, "danger");
+            } finally {
+                setLoading(reportBtn, false);
+            }
+        });
+
+        copyBtn.addEventListener("click", async function () {
+            const text = insightEl.textContent;
+            try {
+                if (navigator.clipboard && window.isSecureContext) {
+                    await navigator.clipboard.writeText(text);
+                } else {
+                    const area = document.createElement("textarea");
+                    area.value = text;
+                    document.body.appendChild(area);
+                    area.select();
+                    document.execCommand("copy");
+                    area.remove();
                 }
-            });
-        }
+                showToast("Đã sao chép báo cáo.", "success");
+            } catch (error) {
+                showToast("Không sao chép được. Vui lòng bôi đen và sao chép thủ công.", "warning");
+            }
+        });
     }
 
     // Xuất ra phạm vi toàn cục để các tính năng AI khác dùng lại

@@ -15,6 +15,7 @@ from django.views.decorators.http import require_GET, require_POST
 from .models import AIReport, Customer, InteractionLog, OrderItem
 from .services import AIServiceError, get_ai_service
 from .services.ai_service import ALLOWED_TONES, DEFAULT_TONE
+from .templatetags.crm_tags import status_badge
 
 MAX_MESSAGE_LENGTH = 2000
 
@@ -225,25 +226,28 @@ def api_analyze_customer(request, pk):
     customer = Customer.objects.filter(pk=pk).first()
     if customer is None:
         return json_error("Không tìm thấy khách hàng.", 404)
+
     service = get_ai_service()
     try:
-        result = service.analyze_customer(customer)
+        service.analyze_customer(customer)
     except AIServiceError as exc:
         return json_error(str(exc), 503)
-    customer.refresh_from_db()  # reload ai_analyzed_at
-    from .templatetags.crm_tags import STATUS_BADGES
+
     return JsonResponse({
         "ok": True,
         "data": {
-            "sentiment": result["sentiment"],
+            "sentiment": customer.ai_sentiment,
             "sentiment_display": customer.get_ai_sentiment_display(),
-            "priority": result["priority"],
+            "priority": customer.ai_priority,
             "priority_display": customer.get_ai_priority_display(),
-            "suggested_status": result["suggested_status"],
+            "suggested_status": customer.ai_suggested_status,
             "suggested_status_display": customer.get_ai_suggested_status_display(),
-            "summary": result["summary"],
-            "next_actions": result["next_actions"],
-            "analyzed_at": customer.ai_analyzed_at.strftime("%d/%m/%Y %H:%M") if customer.ai_analyzed_at else "",
+            "summary": customer.ai_summary,
+            "next_actions": customer.ai_next_actions,
+            "analyzed_at": timezone.localtime(customer.ai_analyzed_at).strftime("%d/%m/%Y %H:%M"),
+            # Giao diện chỉ hiện nút "Áp dụng" khi đề xuất khác trạng thái hiện tại
+            "status": customer.status,
+            "can_apply": customer.ai_suggested_status != customer.status,
         },
         "mock": service.is_mock,
         "provider": service.last_provider_label,
@@ -257,30 +261,28 @@ def api_apply_status(request, pk):
     if customer is None:
         return json_error("Không tìm thấy khách hàng.", 404)
     if not customer.ai_suggested_status:
-        return json_error("Chưa có đề xuất trạng thái từ AI.", 400)
+        return json_error("Khách hàng chưa có trạng thái do AI đề xuất. Hãy phân tích trước.", 400)
     if customer.ai_suggested_status == customer.status:
         return json_error("Trạng thái đề xuất trùng với trạng thái hiện tại.", 400)
-    from .templatetags.crm_tags import STATUS_BADGES
+
     customer.status = customer.ai_suggested_status
-    customer.save(update_fields=["status"])
+    customer.save(update_fields=["status", "updated_at"])
     return JsonResponse({
         "ok": True,
         "status": customer.status,
         "status_display": customer.get_status_display(),
-        "badge_class": STATUS_BADGES.get(customer.status, "text-bg-secondary"),
+        "badge_class": status_badge(customer.status),
     })
 
 
 @require_GET
 @staff_required
 def report_page(request):
-    from .services.ai_service import GeminiCRMService
-    stats = GeminiCRMService.build_report_stats()
-    recent_reports = AIReport.objects.select_related("created_by").order_by("-created_at")[:5]
+    service = get_ai_service()
     context = {
-        "stats": stats,
-        "recent_reports": recent_reports,
-        "ai_is_mock": get_ai_service().is_mock,
+        "stats": service.build_report_stats(),
+        "recent_reports": AIReport.objects.select_related("created_by")[:5],
+        "ai_is_mock": service.is_mock,
     }
     return render(request, "crm/report.html", context)
 
@@ -288,21 +290,22 @@ def report_page(request):
 @require_POST
 @api_staff_required
 def api_generate_report(request):
-    from .models import Customer
-    if Customer.objects.count() == 0:
-        return json_error("Chưa có dữ liệu khách hàng để tạo báo cáo.", 400)
+    if not Customer.objects.exists():
+        return json_error("CSDL chưa có khách hàng nào nên chưa thể tạo báo cáo.", 400)
+
     service = get_ai_service()
     try:
         result = service.generate_report()
     except AIServiceError as exc:
         return json_error(str(exc), 503)
-    # Lưu lịch sử
-    AIReport.objects.create(
+
+    # Lưu lịch sử để xem lại trong Admin (CRM → Báo cáo AI)
+    report = AIReport.objects.create(
         content=result["insight"],
         stats=result["stats"],
         provider=service.last_provider_label,
         is_mock=service.is_mock,
-        created_by=request.user if request.user.is_authenticated else None,
+        created_by=request.user,
     )
     return JsonResponse({
         "ok": True,
@@ -311,4 +314,9 @@ def api_generate_report(request):
         "generated_at": result["generated_at"],
         "mock": service.is_mock,
         "provider": service.last_provider_label,
+        "report": {
+            "id": report.pk,
+            "created_at": timezone.localtime(report.created_at).strftime("%d/%m/%Y %H:%M"),
+            "created_by": request.user.get_username(),
+        },
     })

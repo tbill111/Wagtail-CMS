@@ -1,70 +1,35 @@
 {% load crm_tags %}
-<div class="sc-card ai-card mb-4" id="ai-classify-card" data-analyze-url="{% url 'crm:api_analyze_customer' customer.pk %}" data-apply-url="{% url 'crm:api_apply_status' customer.pk %}">
-    <div class="d-flex justify-content-between align-items-center mb-3">
+{% with analyzed=customer.ai_analyzed_at %}
+<section class="sc-card ai-card mb-4" id="ai-classify-card"
+         data-analyze-url="{% url 'crm:api_analyze_customer' customer.pk %}"
+         data-apply-url="{% url 'crm:api_apply_status' customer.pk %}">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
         <h2 class="h5 mb-0 text-ai">✨ Phân loại AI</h2>
-        <span class="ai-badge" id="classify-provider-badge">Phân tích bởi AI Gemini{% if ai_is_mock %} (chế độ mô phỏng){% endif %}</span>
+        <span class="ai-badge{% if not analyzed %} d-none{% endif %}" id="classify-provider">Phân tích bởi {{ customer.ai_provider|default:"AI Gemini" }}</span>
     </div>
 
-    {% csrf_token %}
+    <div class="sc-empty{% if analyzed %} d-none{% endif %}" id="classify-empty">Chưa có phân tích</div>
 
-    {% if not customer.ai_analyzed_at %}
-        <div class="sc-empty" id="classify-empty">Chưa có phân tích AI.</div>
-        <div id="classify-result" class="d-none">
-            <div class="mb-2">
-                <strong>Cảm xúc:</strong>
-                <span class="badge" id="classify-sentiment"></span>
-                <strong class="ms-3">Mức độ ưu tiên:</strong>
-                <span class="badge" id="classify-priority"></span>
-            </div>
-            <p id="classify-summary"></p>
-            <strong>Hành động tiếp theo:</strong>
-            <ul id="classify-actions"></ul>
-            <div class="mt-2 text-muted">
-                <small id="classify-time"></small>
-                <small class="ms-2" id="classify-provider-label"></small>
-            </div>
-            <div class="mt-2 d-none" id="classify-status-suggest">
-                AI đề xuất chuyển sang: <strong id="classify-suggested-label"></strong>
-                <button type="button" id="apply-status-btn" class="btn btn-sm btn-outline-ai ms-2">Áp dụng</button>
-            </div>
+    <div id="classify-result" class="{% if not analyzed %}d-none{% endif %}">
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+            <span class="small text-muted">Cảm xúc:</span>
+            <span class="badge {{ customer.ai_sentiment|sentiment_badge }}" id="classify-sentiment">{{ customer.ai_sentiment|sentiment_label }}</span>
+            <span class="small text-muted ms-2">Ưu tiên:</span>
+            <span class="badge {{ customer.ai_priority|priority_badge }}" id="classify-priority">{{ customer.get_ai_priority_display }}</span>
         </div>
-        <button type="button" id="classify-btn" class="btn btn-ai mt-3">✨ Phân tích khách hàng</button>
-    {% else %}
-        <div class="sc-empty d-none" id="classify-empty">Chưa có phân tích AI.</div>
-        <div id="classify-result">
-            <div class="mb-2">
-                <strong>Cảm xúc:</strong>
-                <span class="badge {% if customer.ai_sentiment == 'positive' %}text-bg-success{% elif customer.ai_sentiment == 'negative' %}text-bg-danger{% else %}text-bg-secondary{% endif %}" id="classify-sentiment">
-                    {% if customer.ai_sentiment == 'positive' %}😊 Tích cực{% elif customer.ai_sentiment == 'negative' %}😟 Tiêu cực{% else %}😐 Trung lập{% endif %}
-                </span>
-                <strong class="ms-3">Mức độ ưu tiên:</strong>
-                <span class="badge {% if customer.ai_priority == 'high' %}text-bg-danger{% elif customer.ai_priority == 'medium' %}text-bg-warning{% else %}text-bg-success{% endif %}" id="classify-priority">
-                    {% if customer.ai_priority == 'high' %}Cao{% elif customer.ai_priority == 'medium' %}Trung bình{% else %}Thấp{% endif %}
-                </span>
-            </div>
-            <p id="classify-summary">{{ customer.ai_summary }}</p>
-            <strong>Hành động tiếp theo:</strong>
-            <ul id="classify-actions">
-                {% for action in customer.ai_next_actions %}
-                    <li>{{ action }}</li>
-                {% endfor %}
-            </ul>
-            <div class="mt-2 text-muted">
-                <small id="classify-time">Phân tích lúc: {{ customer.ai_analyzed_at|date:"d/m/Y H:i" }}</small>
-                <small class="ms-2" id="classify-provider-label"></small>
-            </div>
-            {% if customer.ai_suggested_status and customer.ai_suggested_status != customer.status %}
-            <div class="mt-2" id="classify-status-suggest">
-                AI đề xuất chuyển sang: <strong id="classify-suggested-label">{{ customer.get_ai_suggested_status_display }}</strong>
-                <button type="button" id="apply-status-btn" class="btn btn-sm btn-outline-ai ms-2">Áp dụng</button>
-            </div>
-            {% else %}
-            <div class="mt-2 d-none" id="classify-status-suggest">
-                AI đề xuất chuyển sang: <strong id="classify-suggested-label"></strong>
-                <button type="button" id="apply-status-btn" class="btn btn-sm btn-outline-ai ms-2">Áp dụng</button>
-            </div>
-            {% endif %}
+        <p class="mb-2" id="classify-summary">{{ customer.ai_summary }}</p>
+        <div class="small text-muted mb-1">Hành động gợi ý:</div>
+        <ul class="mb-2" id="classify-actions">
+            {% for action in customer.ai_next_actions %}<li>{{ action }}</li>{% endfor %}
+        </ul>
+        <div class="small text-muted" id="classify-time">{% if analyzed %}Phân tích lúc: {{ customer.ai_analyzed_at|date:"d/m/Y H:i" }}{% endif %}</div>
+
+        <div class="d-flex flex-wrap align-items-center gap-2 mt-3{% if not customer.ai_suggested_status or customer.ai_suggested_status == customer.status %} d-none{% endif %}" id="classify-status-suggest">
+            <span>AI đề xuất chuyển sang: <strong id="classify-suggested-label">{{ customer.get_ai_suggested_status_display }}</strong></span>
+            <button type="button" id="apply-status-btn" class="btn btn-sm btn-outline-ai">Áp dụng</button>
         </div>
-        <button type="button" id="classify-btn" class="btn btn-ai mt-3">✨ Phân tích lại</button>
-    {% endif %}
-</div>
+    </div>
+
+    <button type="button" id="classify-btn" class="btn btn-ai mt-3">{% if analyzed %}✨ Phân tích lại{% else %}✨ Phân tích khách hàng{% endif %}</button>
+</section>
+{% endwith %}

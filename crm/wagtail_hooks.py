@@ -2,6 +2,9 @@ from django.urls import reverse
 from wagtail import hooks
 from wagtail.admin.menu import MenuItem
 from wagtail.admin.panels import FieldPanel, FieldRowPanel, InlinePanel, MultiFieldPanel
+from wagtail.admin.ui.tables import BooleanColumn
+from wagtail.permission_policies.base import ModelPermissionPolicy
+from wagtail.permissions import register_permission_policy
 from wagtail.snippets.models import register_snippet
 from wagtail.snippets.views.snippets import SnippetViewSet, SnippetViewSetGroup
 
@@ -42,7 +45,10 @@ class CustomerViewSet(SnippetViewSet):
                 FieldPanel("ai_suggested_status", read_only=True),
                 FieldPanel("ai_summary", read_only=True),
                 FieldPanel("ai_next_actions", read_only=True),
-                FieldPanel("ai_analyzed_at", read_only=True),
+                FieldRowPanel([
+                    FieldPanel("ai_analyzed_at", read_only=True),
+                    FieldPanel("ai_provider", read_only=True),
+                ]),
             ],
             heading="Phân tích AI",
         ),
@@ -83,29 +89,35 @@ class InteractionLogViewSet(SnippetViewSet):
     ]
 
 
+class ReadOnlyPermissionPolicy(ModelPermissionPolicy):
+    """Chỉ cho xem: không ai (kể cả superuser) được thêm/sửa/xoá qua Admin."""
+
+    blocked_actions = {"add", "change", "delete"}
+
+    def user_has_permission(self, user, action):
+        if action in self.blocked_actions:
+            return False
+        return super().user_has_permission(user, action)
+
+    def users_with_any_permission(self, actions):
+        return super().users_with_any_permission(set(actions) - self.blocked_actions)
+
+
+# AIReport chỉ được tạo từ trang /crm/reports/ (luồng AI → CSDL → Admin)
+register_permission_policy(AIReport, ReadOnlyPermissionPolicy(AIReport))
+
+
 class AIReportViewSet(SnippetViewSet):
     model = AIReport
     icon = "doc-full"
     menu_label = "Báo cáo AI"
     menu_order = 400
     search_backend_name = None
-    list_display = ["__str__", "provider", "is_mock", "created_by", "created_at"]
+    list_display = ["__str__", "provider", BooleanColumn("is_mock", label="Chế độ mô phỏng"), "created_by", "created_at"]
     list_filter = ["is_mock", "provider"]
     search_fields = ["content"]
-    panels = [
-        FieldPanel("content", read_only=True),
-        FieldPanel("stats", read_only=True),
-        FieldRowPanel([
-            FieldPanel("provider", read_only=True),
-            FieldPanel("is_mock", read_only=True),
-        ]),
-        FieldRowPanel([
-            FieldPanel("created_by", read_only=True),
-            FieldPanel("created_at", read_only=True),
-        ]),
-    ]
-    add_to_admin_menu = False
     inspect_view_enabled = True
+    inspect_view_fields = ["content", "stats", "provider", "is_mock", "created_by", "created_at"]
 
 
 class CRMViewSetGroup(SnippetViewSetGroup):

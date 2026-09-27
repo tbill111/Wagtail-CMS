@@ -18,6 +18,19 @@ ORDER_BADGES = {
     "cancelled": "text-bg-danger",
 }
 
+# Phân loại AI – ai.js dùng cùng bảng màu/nhãn khi cập nhật không tải lại trang
+SENTIMENT_BADGES = {
+    "positive": ("text-bg-success", "😊 Tích cực"),
+    "neutral": ("text-bg-secondary", "😐 Trung lập"),
+    "negative": ("text-bg-danger", "😟 Tiêu cực"),
+}
+
+PRIORITY_BADGES = {
+    "high": "text-bg-danger",
+    "medium": "text-bg-warning",
+    "low": "text-bg-success",
+}
+
 
 @register.filter
 def vnd(amount):
@@ -33,6 +46,21 @@ def status_badge(status):
 @register.filter
 def order_badge(status):
     return ORDER_BADGES.get(status, "text-bg-secondary")
+
+
+@register.filter
+def sentiment_badge(sentiment):
+    return SENTIMENT_BADGES.get(sentiment, SENTIMENT_BADGES["neutral"])[0]
+
+
+@register.filter
+def sentiment_label(sentiment):
+    return SENTIMENT_BADGES.get(sentiment, SENTIMENT_BADGES["neutral"])[1]
+
+
+@register.filter
+def priority_badge(priority):
+    return PRIORITY_BADGES.get(priority, "text-bg-secondary")
 
 
 @register.simple_tag(takes_context=True)
