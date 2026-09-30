@@ -18,12 +18,21 @@
             <label for="q" class="form-label small text-muted mb-1">Tìm kiếm</label>
             <input type="search" id="q" name="q" value="{{ query }}" class="form-control" placeholder="Tên, email hoặc số điện thoại…">
         </div>
-        <div class="col-8 col-md-4">
+        <div class="col-8 col-md-3">
             <label for="status" class="form-label small text-muted mb-1">Trạng thái</label>
             <select id="status" name="status" class="form-select">
                 <option value="">Tất cả trạng thái</option>
                 {% for value, label in status_choices %}
                 <option value="{{ value }}" {% if value == status %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-8 col-md-3">
+            <label for="priority" class="form-label small text-muted mb-1">Ưu tiên AI</label>
+            <select id="priority" name="priority" class="form-select">
+                <option value="">Tất cả mức ưu tiên</option>
+                {% for value, label in priority_choices %}
+                <option value="{{ value }}" {% if value == priority %}selected{% endif %}>{{ label }}</option>
                 {% endfor %}
             </select>
         </div>
@@ -43,6 +52,7 @@
                 <th class="d-none d-md-table-cell">Số điện thoại</th>
                 <th class="d-none d-lg-table-cell">Công ty</th>
                 <th>Trạng thái</th>
+                <th>Ưu tiên AI</th>
                 <th class="d-none d-md-table-cell">Phụ trách</th>
                 <th></th>
             </tr>
@@ -57,6 +67,13 @@
                 <td class="d-none d-md-table-cell">{{ customer.phone|default:"—" }}</td>
                 <td class="d-none d-lg-table-cell">{{ customer.company|default:"—" }}</td>
                 <td><span class="badge {{ customer.status|status_badge }}">{{ customer.get_status_display }}</span></td>
+                <td>
+                    {% if customer.ai_priority %}
+                    <span class="badge {{ customer.ai_priority|priority_badge }}">{{ customer.get_ai_priority_display }}</span>
+                    {% else %}
+                    <span class="text-muted">—</span>
+                    {% endif %}
+                </td>
                 <td class="d-none d-md-table-cell small">{{ customer.assigned_staff.get_username|default:"—" }}</td>
                 <td class="text-end"><a href="{% url 'crm:customer_detail' customer.pk %}" class="btn btn-sm btn-outline-primary">Chi tiết</a></td>
             </tr>

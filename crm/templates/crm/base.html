@@ -33,7 +33,11 @@
                 <li class="nav-item">
                     <a class="nav-link {% if url_name == 'customer_list' or url_name == 'customer_detail' %}active{% endif %}" href="{% url 'crm:customer_list' %}">Khách hàng</a>
                 </li>
-                {% block nav_extra %}{% endblock %}
+                {% block nav_extra %}
+                <li class="nav-item">
+                    <a class="nav-link {% if url_name == 'report_page' %}active{% endif %}" href="{% url 'crm:report_page' %}">Báo cáo AI</a>
+                </li>
+                {% endblock %}
                 <li class="nav-item">
                     <a class="nav-link" href="{% url 'wagtailadmin_home' %}">Vào Admin</a>
                 </li>
@@ -61,7 +65,7 @@
 
 <footer class="sc-footer">
     <div class="container d-flex flex-column flex-md-row justify-content-between gap-1">
-        <span>© 2026 SmartCRM – Nhóm ... – Trường Đại học Thủy Lợi</span>
+        <span>© 2026 SmartCRM – Nhóm 3 – Trường Đại học Thủy Lợi</span>
         <span class="text-ai">Quản lý khách hàng thông minh cùng AI ✨</span>
     </div>
 </footer>

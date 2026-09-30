@@ -19,4 +19,8 @@ urlpatterns = [
         views.api_save_interaction,
         name="api_save_interaction",
     ),
+    path("api/customers/<int:pk>/analyze/", views.api_analyze_customer, name="api_analyze_customer"),
+    path("api/customers/<int:pk>/apply-status/", views.api_apply_status, name="api_apply_status"),
+    path("reports/", views.report_page, name="report_page"),
+    path("api/reports/generate/", views.api_generate_report, name="api_generate_report"),
 ]

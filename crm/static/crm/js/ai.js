@@ -202,6 +202,157 @@
         });
     }
 
+    // ------------------------------------------------ Tính năng: Phân loại khách hàng AI
+    // Cùng bảng màu/nhãn với filter sentiment_badge / priority_badge trong crm_tags.py
+    const SENTIMENT_BADGES = {
+        positive: ["text-bg-success", "😊 Tích cực"],
+        neutral: ["text-bg-secondary", "😐 Trung lập"],
+        negative: ["text-bg-danger", "😟 Tiêu cực"]
+    };
+    const PRIORITY_BADGES = { high: "text-bg-danger", medium: "text-bg-warning", low: "text-bg-success" };
+
+    function initClassifyCard(card) {
+        if (!card) return;
+        const $ = function (id) { return card.querySelector("#" + id); };
+        const analyzeBtn = $("classify-btn");
+        const applyBtn = $("apply-status-btn");
+        const suggestBox = $("classify-status-suggest");
+        let busy = false;
+
+        function render(data, mock, provider) {
+            const sentiment = SENTIMENT_BADGES[data.sentiment] || SENTIMENT_BADGES.neutral;
+            $("classify-sentiment").className = "badge " + sentiment[0];
+            $("classify-sentiment").textContent = sentiment[1];
+            $("classify-priority").className = "badge " + (PRIORITY_BADGES[data.priority] || "text-bg-secondary");
+            $("classify-priority").textContent = data.priority_display;
+            $("classify-summary").textContent = data.summary || "";
+
+            const list = $("classify-actions");
+            list.replaceChildren();
+            (data.next_actions || []).forEach(function (action) {
+                const li = document.createElement("li");
+                li.textContent = action;
+                list.appendChild(li);
+            });
+            $("classify-time").textContent = "Phân tích lúc: " + data.analyzed_at;
+            $("classify-provider").textContent = "Phân tích bởi " + (provider || "AI") + (mock ? " (chế độ mô phỏng)" : "");
+            $("classify-provider").classList.remove("d-none");
+
+            $("classify-suggested-label").textContent = data.suggested_status_display || "";
+            suggestBox.classList.toggle("d-none", !data.can_apply);
+
+            $("classify-empty").classList.add("d-none");
+            $("classify-result").classList.remove("d-none");
+        }
+
+        analyzeBtn.addEventListener("click", async function () {
+            if (busy) return;
+            busy = true;
+            setLoading(analyzeBtn, true, "✨ AI đang phân tích…");
+            if (applyBtn) applyBtn.disabled = true;
+            try {
+                const payload = await postJSON(card.dataset.analyzeUrl, {});
+                render(payload.data, payload.mock, payload.provider);
+                showToast("AI đã phân tích xong khách hàng.", "success");
+                analyzeBtn.dataset.originalHtml = "✨ Phân tích lại";
+            } catch (error) {
+                showToast(error.message, "danger");
+            } finally {
+                setLoading(analyzeBtn, false);
+                if (applyBtn) applyBtn.disabled = false;
+                busy = false;
+            }
+        });
+
+        applyBtn.addEventListener("click", async function () {
+            if (busy) return;
+            busy = true;
+            setLoading(applyBtn, true, "Đang áp dụng…");
+            analyzeBtn.disabled = true;
+            try {
+                const payload = await postJSON(card.dataset.applyUrl, {});
+                const badge = document.getElementById("customer-status-badge");
+                if (badge) {
+                    badge.className = "badge " + payload.badge_class;
+                    badge.textContent = payload.status_display;
+                }
+                suggestBox.classList.add("d-none");
+                showToast("Đã chuyển trạng thái sang “" + payload.status_display + "”.", "success");
+            } catch (error) {
+                showToast(error.message, "danger");
+            } finally {
+                setLoading(applyBtn, false);
+                analyzeBtn.disabled = false;
+                busy = false;
+            }
+        });
+    }
+
+    // ------------------------------------------------ Tính năng: Báo cáo AI
+    function initReportPage(page) {
+        if (!page) return;
+        const reportBtn = page.querySelector("#report-btn");
+        const copyBtn = page.querySelector("#report-copy-btn");
+        const insightEl = page.querySelector("#report-insight");
+        if (!reportBtn) return; // CSDL chưa có khách: nút bị ẩn
+
+        function prependHistoryRow(payload) {
+            const body = page.querySelector("#recent-reports-body");
+            const row = document.createElement("tr");
+            const provider = payload.provider + (payload.mock ? " (mô phỏng)" : "");
+            const content = payload.insight.length > 120 ? payload.insight.slice(0, 119) + "…" : payload.insight;
+            row.innerHTML =
+                '<td class="text-nowrap small">' + escapeHTML(payload.report.created_at) + "</td>" +
+                '<td><span class="ai-badge ai-badge-sm">' + escapeHTML(provider) + "</span></td>" +
+                '<td class="d-none d-md-table-cell small">' + escapeHTML(payload.report.created_by) + "</td>" +
+                '<td class="small text-muted">' + escapeHTML(content) + "</td>";
+            body.prepend(row);
+            while (body.rows.length > 5) body.deleteRow(-1);
+            page.querySelector("#recent-reports").classList.remove("d-none");
+        }
+
+        reportBtn.addEventListener("click", async function () {
+            if (reportBtn.disabled) return;
+            setLoading(reportBtn, true, "✨ AI đang tổng hợp…");
+            try {
+                const payload = await postJSON(page.dataset.generateUrl, {});
+                insightEl.textContent = payload.insight;
+                page.querySelector("#report-provider").textContent =
+                    "Nhận định bởi " + payload.provider + (payload.mock ? " (chế độ mô phỏng)" : "");
+                page.querySelector("#report-time").textContent =
+                    "Tạo lúc: " + new Date(payload.generated_at).toLocaleString("vi-VN");
+                page.querySelector("#report-empty").classList.add("d-none");
+                page.querySelector("#report-result").classList.remove("d-none");
+                copyBtn.classList.remove("d-none");
+                prependHistoryRow(payload);
+                showToast("Đã tạo báo cáo nhận định.", "success");
+            } catch (error) {
+                showToast(error.message, "danger");
+            } finally {
+                setLoading(reportBtn, false);
+            }
+        });
+
+        copyBtn.addEventListener("click", async function () {
+            const text = insightEl.textContent;
+            try {
+                if (navigator.clipboard && window.isSecureContext) {
+                    await navigator.clipboard.writeText(text);
+                } else {
+                    const area = document.createElement("textarea");
+                    area.value = text;
+                    document.body.appendChild(area);
+                    area.select();
+                    document.execCommand("copy");
+                    area.remove();
+                }
+                showToast("Đã sao chép báo cáo.", "success");
+            } catch (error) {
+                showToast("Không sao chép được. Vui lòng bôi đen và sao chép thủ công.", "warning");
+            }
+        });
+    }
+
     // Xuất ra phạm vi toàn cục để các tính năng AI khác dùng lại
     window.SmartCRM = {
         getCookie: getCookie,
@@ -209,7 +360,9 @@
         setLoading: setLoading,
         showToast: showToast,
         escapeHTML: escapeHTML,
-        initSuggestReply: initSuggestReply
+        initSuggestReply: initSuggestReply,
+        initClassifyCard: initClassifyCard,
+        initReportPage: initReportPage
     };
     window.postJSON = postJSON;
     window.setLoading = setLoading;

@@ -22,7 +22,17 @@ class Customer(models.Model):
         REFERRAL = "referral", "Giới thiệu"
         OTHER = "other", "Khác"
 
-    name = models.CharField("Họ và tên", max_length=150)
+    class Sentiment(models.TextChoices):
+        POSITIVE = "positive", "Tích cực"
+        NEUTRAL = "neutral", "Trung lập"
+        NEGATIVE = "negative", "Tiêu cực"
+
+    class Priority(models.TextChoices):
+        HIGH = "high", "Cao"
+        MEDIUM = "medium", "Trung bình"
+        LOW = "low", "Thấp"
+
+    name =models.CharField("Họ và tên", max_length=150)
     email = models.EmailField("Email", unique=True)
     phone = models.CharField("Số điện thoại", max_length=20, blank=True)
     company = models.CharField("Công ty", max_length=150, blank=True)
@@ -40,6 +50,22 @@ class Customer(models.Model):
         on_delete=models.SET_NULL,
         related_name="assigned_customers",
     )
+
+    # Kết quả phân loại khách hàng bằng AI (do GeminiCRMService.analyze_customer ghi)
+    ai_sentiment = models.CharField(
+        "Cảm xúc AI", max_length=20, choices=Sentiment.choices, blank=True
+    )
+    ai_priority = models.CharField(
+        "Ưu tiên AI", max_length=20, choices=Priority.choices, blank=True
+    )
+    ai_suggested_status = models.CharField(
+        "Trạng thái đề xuất AI", max_length=20, choices=Status.choices, blank=True
+    )
+    ai_summary = models.TextField("Tóm tắt AI", blank=True)
+    ai_next_actions = models.JSONField("Hành động tiếp theo (AI)", default=list, blank=True)
+    ai_analyzed_at = models.DateTimeField("Thời điểm phân tích AI", null=True, blank=True)
+    ai_provider = models.CharField("AI đã phân tích", max_length=100, blank=True)
+
     created_at = models.DateTimeField("Ngày tạo", auto_now_add=True)
     updated_at = models.DateTimeField("Cập nhật lần cuối", auto_now=True)
 
@@ -177,3 +203,30 @@ class InteractionLog(models.Model):
     def __str__(self):
         when = timezone.localtime(self.created_at).strftime("%d/%m/%Y %H:%M") if self.created_at else ""
         return f"{self.customer.name} – {self.get_channel_display()} {when}".strip()
+
+
+class AIReport(models.Model):
+    """Lưu lịch sử báo cáo nhận định nhanh do AI tạo."""
+
+    content = models.TextField("Nội dung nhận định")
+    stats = models.JSONField("Số liệu tổng hợp", default=dict)
+    provider = models.CharField("Nhà cung cấp AI", max_length=100, blank=True)
+    is_mock = models.BooleanField("Chế độ mô phỏng", default=False)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="Người tạo",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="ai_reports",
+    )
+    created_at = models.DateTimeField("Ngày tạo", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Báo cáo AI"
+        verbose_name_plural = "Báo cáo AI"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        when = timezone.localtime(self.created_at).strftime("%d/%m/%Y %H:%M") if self.created_at else ""
+        return f"Báo cáo AI – {when}"

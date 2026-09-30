@@ -1,0 +1,35 @@
+{% load crm_tags %}
+{% with analyzed=customer.ai_analyzed_at %}
+<section class="sc-card ai-card mb-4" id="ai-classify-card"
+         data-analyze-url="{% url 'crm:api_analyze_customer' customer.pk %}"
+         data-apply-url="{% url 'crm:api_apply_status' customer.pk %}">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <h2 class="h5 mb-0 text-ai">✨ Phân loại AI</h2>
+        <span class="ai-badge{% if not analyzed %} d-none{% endif %}" id="classify-provider">Phân tích bởi {{ customer.ai_provider|default:"AI Gemini" }}</span>
+    </div>
+
+    <div class="sc-empty{% if analyzed %} d-none{% endif %}" id="classify-empty">Chưa có phân tích</div>
+
+    <div id="classify-result" class="{% if not analyzed %}d-none{% endif %}">
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+            <span class="small text-muted">Cảm xúc:</span>
+            <span class="badge {{ customer.ai_sentiment|sentiment_badge }}" id="classify-sentiment">{{ customer.ai_sentiment|sentiment_label }}</span>
+            <span class="small text-muted ms-2">Ưu tiên:</span>
+            <span class="badge {{ customer.ai_priority|priority_badge }}" id="classify-priority">{{ customer.get_ai_priority_display }}</span>
+        </div>
+        <p class="mb-2" id="classify-summary">{{ customer.ai_summary }}</p>
+        <div class="small text-muted mb-1">Hành động gợi ý:</div>
+        <ul class="mb-2" id="classify-actions">
+            {% for action in customer.ai_next_actions %}<li>{{ action }}</li>{% endfor %}
+        </ul>
+        <div class="small text-muted" id="classify-time">{% if analyzed %}Phân tích lúc: {{ customer.ai_analyzed_at|date:"d/m/Y H:i" }}{% endif %}</div>
+
+        <div class="d-flex flex-wrap align-items-center gap-2 mt-3{% if not customer.ai_suggested_status or customer.ai_suggested_status == customer.status %} d-none{% endif %}" id="classify-status-suggest">
+            <span>AI đề xuất chuyển sang: <strong id="classify-suggested-label">{{ customer.get_ai_suggested_status_display }}</strong></span>
+            <button type="button" id="apply-status-btn" class="btn btn-sm btn-outline-ai">Áp dụng</button>
+        </div>
+    </div>
+
+    <button type="button" id="classify-btn" class="btn btn-ai mt-3">{% if analyzed %}✨ Phân tích lại{% else %}✨ Phân tích khách hàng{% endif %}</button>
+</section>
+{% endwith %}

@@ -39,6 +39,39 @@
     </div>
 </div>
 
+<div class="sc-card ai-card mb-4" id="high-priority-card">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="h5 mb-0 text-ai">✨ Khách hàng ưu tiên cao (theo AI)</h2>
+        <a href="{% url 'crm:customer_list' %}?priority=high" class="small">Xem tất cả</a>
+    </div>
+    {% if high_priority_customers %}
+    <div class="table-responsive">
+        <table class="table align-middle mb-0">
+            <thead>
+            <tr>
+                <th>Khách hàng</th>
+                <th>Trạng thái</th>
+                <th>Cảm xúc</th>
+                <th class="d-none d-md-table-cell">Phân tích lúc</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for customer in high_priority_customers %}
+            <tr>
+                <td><a href="{% url 'crm:customer_detail' customer.pk %}" class="fw-semibold">{{ customer.name }}</a></td>
+                <td><span class="badge {{ customer.status|status_badge }}">{{ customer.get_status_display }}</span></td>
+                <td><span class="badge {{ customer.ai_sentiment|sentiment_badge }}">{{ customer.ai_sentiment|sentiment_label }}</span></td>
+                <td class="d-none d-md-table-cell text-nowrap small">{{ customer.ai_analyzed_at|date:"d/m/Y H:i" }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="sc-empty">Chưa có khách hàng nào được AI xếp mức ưu tiên cao. Hãy mở một khách hàng và bấm ✨ Phân tích khách hàng.</div>
+    {% endif %}
+</div>
+
 <div class="sc-card">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h2 class="h5 mb-0">5 tương tác mới nhất</h2>

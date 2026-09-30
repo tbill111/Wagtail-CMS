@@ -1,0 +1,101 @@
+{% extends "crm/base.html" %}
+{% load crm_tags %}
+
+{% block title %}Báo cáo AI{% endblock %}
+
+{% block content %}
+<div id="report-page" data-generate-url="{% url 'crm:api_generate_report' %}">
+    <div class="mb-4">
+        <h1 class="h3 mb-1">Báo cáo AI ✨</h1>
+        <p class="text-muted mb-0">Số liệu tổng hợp từ CSDL và nhận định nhanh do AI viết.</p>
+    </div>
+
+    {% csrf_token %}
+
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-lg-3">
+            <div class="sc-card sc-stat h-100">
+                <div class="sc-stat-label">Tổng khách hàng</div>
+                <div class="sc-stat-value">{{ stats.total_customers }}</div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="sc-card sc-stat h-100">
+                <div class="sc-stat-label">Khách mới trong tháng</div>
+                <div class="sc-stat-value">{{ stats.new_customers_month }}</div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="sc-card sc-stat h-100">
+                <div class="sc-stat-label">Doanh thu đơn hoàn thành</div>
+                <div class="sc-stat-value">{{ stats.revenue|vnd }}</div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="sc-card sc-stat h-100">
+                <div class="sc-stat-label">Khách đã phân tích AI</div>
+                <div class="sc-stat-value text-ai">{{ stats.analyzed_count }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="sc-card ai-card mb-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <h2 class="h5 mb-0 text-ai">✨ Nhận định nhanh</h2>
+            {% if stats.total_customers %}
+            <div class="d-flex flex-wrap gap-2">
+                <button type="button" id="report-copy-btn" class="btn btn-sm btn-outline-ai d-none">Sao chép báo cáo</button>
+                <button type="button" id="report-btn" class="btn btn-ai">✨ Tạo báo cáo nhận định</button>
+            </div>
+            {% endif %}
+        </div>
+
+        {% if stats.total_customers %}
+        <div class="sc-empty" id="report-empty">Bấm "✨ Tạo báo cáo nhận định" để AI tổng hợp tình hình kinh doanh.</div>
+        <div id="report-result" class="d-none">
+            <div id="report-insight" style="white-space: pre-line;"></div>
+            <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
+                <span class="ai-badge ai-badge-sm" id="report-provider"></span>
+                <small class="text-muted" id="report-time"></small>
+            </div>
+        </div>
+        {% else %}
+        <div class="sc-empty">Chưa có khách hàng nào trong CSDL nên chưa thể tạo báo cáo. Hãy thêm khách hàng trong Admin trước.</div>
+        {% endif %}
+    </div>
+
+    <div class="sc-card mb-4{% if not recent_reports %} d-none{% endif %}" id="recent-reports">
+        <h2 class="h5 mb-3">5 báo cáo gần nhất</h2>
+        <div class="table-responsive">
+            <table class="table align-middle mb-0">
+                <thead>
+                <tr>
+                    <th>Thời gian</th>
+                    <th>AI</th>
+                    <th class="d-none d-md-table-cell">Người tạo</th>
+                    <th>Nội dung</th>
+                </tr>
+                </thead>
+                <tbody id="recent-reports-body">
+                {% for report in recent_reports %}
+                <tr>
+                    <td class="text-nowrap small">{{ report.created_at|date:"d/m/Y H:i" }}</td>
+                    <td><span class="ai-badge ai-badge-sm">{{ report.provider }}{% if report.is_mock %} (mô phỏng){% endif %}</span></td>
+                    <td class="d-none d-md-table-cell small">{{ report.created_by.get_username|default:"—" }}</td>
+                    <td class="small text-muted">{{ report.content|truncatechars:120 }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    SmartCRM.initReportPage(document.getElementById("report-page"));
+});
+</script>
+{% endblock %}

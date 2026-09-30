@@ -110,9 +110,15 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--reset", action="store_true", help="Xoá dữ liệu mẫu cũ trước khi tạo lại.")
+        parser.add_argument(
+            "--analyze", action="store_true",
+            help="Điền sẵn kết quả phân loại AI (luôn dùng MOCK, không gọi AI thật) cho khách mẫu.",
+        )
 
     @transaction.atomic
     def handle(self, *args, **options):
+        from crm.services.ai_service import GeminiCRMService
+
         demo_customers = Customer.objects.filter(email__endswith=f"@{DEMO_DOMAIN}")
         if options["reset"]:
             count = demo_customers.count()
@@ -122,7 +128,7 @@ class Command(BaseCommand):
         User = get_user_model()
         staff = User.objects.filter(is_staff=True).order_by("id").first()
         now = timezone.now()
-        created = {"customers": 0, "orders": 0, "interactions": 0}
+        created = {"customers": 0, "orders": 0, "interactions": 0, "analyzed": 0}
 
         for name, prefix, phone, company, status, source, days_ago in CUSTOMERS:
             customer, is_new = Customer.objects.get_or_create(
@@ -175,10 +181,17 @@ class Command(BaseCommand):
                     )
                     created["interactions"] += 1
 
+            if options["analyze"]:
+                # Luôn dùng kết quả MOCK – không gọi AI thật (tránh tốn quota khi .env có key)
+                GeminiCRMService.save_analysis(
+                    customer, GeminiCRMService._mock_analysis(customer), "AI Gemini (chế độ mô phỏng)"
+                )
+                created["analyzed"] += 1
+
         self.stdout.write(
             self.style.SUCCESS(
                 "Hoàn tất dữ liệu mẫu: thêm mới {customers} khách hàng, {orders} đơn hàng, "
-                "{interactions} tương tác.".format(**created)
+                "{interactions} tương tác; phân loại AI (mô phỏng) {analyzed} khách.".format(**created)
             )
         )
         self.stdout.write(
