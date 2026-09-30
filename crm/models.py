@@ -1,8 +1,12 @@
+from collections import defaultdict
 from decimal import Decimal
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.db.models import DecimalField, ExpressionWrapper, F, Sum
+from django.db.models.signals import pre_delete
+from django.dispatch import receiver
 from django.utils import timezone
 from modelcluster.fields import ParentalKey
 from modelcluster.models import ClusterableModel
@@ -93,6 +97,43 @@ class Customer(models.Model):
         return result or Decimal("0")
 
 
+class Product(models.Model):
+    sku = models.CharField("Mã SKU", max_length=30, unique=True)
+    name = models.CharField("Tên sản phẩm / dịch vụ", max_length=200)
+    unit = models.CharField("Đơn vị tính", max_length=30, default="cái")
+    price = models.DecimalField("Giá bán (VNĐ)", max_digits=14, decimal_places=0)
+    track_stock = models.BooleanField(
+        "Quản lý tồn kho", default=True,
+        help_text="Bỏ chọn với dịch vụ / gói phần mềm (không có hàng trong kho).",
+    )
+    stock = models.PositiveIntegerField("Tồn kho", default=0)
+    min_stock = models.PositiveIntegerField(
+        "Tồn kho tối thiểu", default=0, help_text="Cảnh báo sắp hết hàng khi tồn kho ≤ mức này."
+    )
+    is_active = models.BooleanField("Đang kinh doanh", default=True)
+    created_at = models.DateTimeField("Ngày tạo", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Sản phẩm"
+        verbose_name_plural = "Sản phẩm"
+        ordering = ["name"]
+
+    def __str__(self):
+        return f"{self.sku} – {self.name}"
+
+    @property
+    def is_low_stock(self):
+        return self.track_stock and self.stock <= self.min_stock
+
+    @classmethod
+    def low_stock(cls):
+        return cls.objects.filter(is_active=True, track_stock=True, stock__lte=F("min_stock"))
+
+
+class InsufficientStockError(ValidationError):
+    """Hoàn thành đơn hàng nhưng kho không đủ hàng để xuất."""
+
+
 class Order(ClusterableModel):
     class Status(models.TextChoices):
         NEW = "new", "Mới"
@@ -111,6 +152,8 @@ class Order(ClusterableModel):
         "Trạng thái", max_length=20, choices=Status.choices, default=Status.NEW
     )
     note = models.TextField("Ghi chú", blank=True)
+    # {product_id: số lượng đã trừ kho} – để hoàn/trừ đúng phần chênh lệch mỗi lần lưu
+    stock_snapshot = models.JSONField("Số lượng đã trừ kho", default=dict, blank=True, editable=False)
     created_at = models.DateTimeField("Ngày tạo", auto_now_add=True)
 
     class Meta:
@@ -136,11 +179,53 @@ class Order(ClusterableModel):
         return f"{prefix}{next_number:04d}"
 
     def save(self, *args, **kwargs):
-        if not self.code:
-            with transaction.atomic():
+        with transaction.atomic():
+            if not self.code:
                 self.code = self.generate_code()
-                return super().save(*args, **kwargs)
-        return super().save(*args, **kwargs)
+            # ClusterableModel.save() ghi luôn các dòng sản phẩm, nên sau đó mới đồng bộ kho
+            super().save(*args, **kwargs)
+            self.sync_stock()
+
+    # ------------------------------------------------------------ tồn kho
+    def desired_stock(self, items):
+        """Số lượng cần trừ kho theo từng sản phẩm; ``items`` là các cặp (product, quantity)."""
+        desired = defaultdict(int)
+        if self.status == self.Status.COMPLETED:
+            for product, quantity in items:
+                if product is not None and product.track_stock and quantity:
+                    desired[product.pk] += quantity
+        return dict(desired)
+
+    def stock_delta(self, desired):
+        """Chênh lệch cần trừ thêm (dương) hoặc hoàn lại (âm) so với lần lưu trước."""
+        previous = {int(pk): qty for pk, qty in (self.stock_snapshot or {}).items()}
+        delta = {pk: desired.get(pk, 0) - previous.get(pk, 0) for pk in desired.keys() | previous.keys()}
+        return {pk: qty for pk, qty in delta.items() if qty}
+
+    @staticmethod
+    def stock_shortages(delta):
+        """Thông báo cho các sản phẩm không đủ tồn kho để trừ ``delta``."""
+        need = {pk: qty for pk, qty in delta.items() if qty > 0}
+        return [
+            f"{product.name} ({product.sku}): cần xuất {need[pk]}, tồn kho chỉ còn {product.stock}"
+            for pk, product in Product.objects.in_bulk(need).items()
+            if product.stock < need[pk]
+        ]
+
+    def sync_stock(self):
+        """Trừ kho khi đơn Hoàn thành; hoàn kho khi đơn rời trạng thái Hoàn thành hoặc bị sửa."""
+        items = OrderItem.objects.filter(order_id=self.pk).select_related("product")
+        desired = self.desired_stock((item.product, item.quantity) for item in items)
+        delta = self.stock_delta(desired)
+        if not delta:
+            return
+        shortages = self.stock_shortages(delta)
+        if shortages:
+            raise InsufficientStockError("Không đủ hàng trong kho: " + "; ".join(shortages))
+        for pk, qty in delta.items():
+            Product.objects.filter(pk=pk).update(stock=F("stock") - qty)
+        self.stock_snapshot = {str(pk): qty for pk, qty in desired.items()}
+        Order.objects.filter(pk=self.pk).update(stock_snapshot=self.stock_snapshot)
 
     @property
     def total_amount(self):
@@ -149,9 +234,23 @@ class Order(ClusterableModel):
 
 class OrderItem(Orderable):
     order = ParentalKey(Order, on_delete=models.CASCADE, related_name="items")
-    product_name = models.CharField("Sản phẩm / dịch vụ", max_length=200)
+    product = models.ForeignKey(
+        Product,
+        verbose_name="Sản phẩm",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="order_items",
+    )
+    product_name = models.CharField(
+        "Tên hiển thị", max_length=200, blank=True,
+        help_text="Bỏ trống để lấy tên sản phẩm đã chọn.",
+    )
     quantity = models.PositiveIntegerField("Số lượng", default=1)
-    unit_price = models.DecimalField("Đơn giá (VNĐ)", max_digits=14, decimal_places=0)
+    unit_price = models.DecimalField(
+        "Đơn giá (VNĐ)", max_digits=14, decimal_places=0, blank=True,
+        help_text="Bỏ trống để lấy giá bán của sản phẩm.",
+    )
 
     class Meta(Orderable.Meta):
         verbose_name = "Dòng sản phẩm"
@@ -160,9 +259,34 @@ class OrderItem(Orderable):
     def __str__(self):
         return f"{self.product_name} x {self.quantity}"
 
+    def fill_from_product(self):
+        if self.product_id:
+            if not self.product_name:
+                self.product_name = self.product.name
+            if self.unit_price is None:
+                self.unit_price = self.product.price
+
+    def clean(self):
+        self.fill_from_product()
+        if not self.product_name:
+            raise ValidationError({"product": "Chọn sản phẩm hoặc nhập tên hiển thị."})
+        if self.unit_price is None:
+            raise ValidationError({"unit_price": "Vui lòng nhập đơn giá."})
+
+    def save(self, *args, **kwargs):
+        self.fill_from_product()
+        super().save(*args, **kwargs)
+
     @property
     def subtotal(self):
         return (self.unit_price or Decimal("0")) * (self.quantity or 0)
+
+
+@receiver(pre_delete, sender=Order)
+def restore_stock_on_order_delete(sender, instance, **kwargs):
+    """Xoá đơn đã trừ kho (kể cả xoá theo khách hàng) thì trả hàng về kho."""
+    for pk, qty in (instance.stock_snapshot or {}).items():
+        Product.objects.filter(pk=int(pk)).update(stock=F("stock") + qty)
 
 
 class InteractionLog(models.Model):

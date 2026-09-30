@@ -12,7 +12,8 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
-from .models import AIReport, Customer, InteractionLog, OrderItem
+from . import analytics
+from .models import AIReport, Customer, InteractionLog, OrderItem, Product
 from .services import AIServiceError, get_ai_service
 from .services.ai_service import ALLOWED_TONES, DEFAULT_TONE
 from .templatetags.crm_tags import status_badge
@@ -81,9 +82,19 @@ def dashboard(request):
         )
     )["total"]
     high_priority_customers = Customer.objects.filter(ai_priority="high").order_by("-ai_analyzed_at")[:5]
+    low_stock = analytics.low_stock_products()
     context = {
         "high_priority_customers": high_priority_customers,
+        "low_stock_products": low_stock,
+        "charts": {
+            "revenue": analytics.monthly_revenue(),
+            "status": analytics.customers_by_status(),
+            "customers": analytics.top_customers(),
+            "products": analytics.top_products(),
+        },
         "stats": {
+            "products": Product.objects.filter(is_active=True).count(),
+            "low_stock": len(low_stock),
             "total_customers": Customer.objects.count(),
             "new_customers": Customer.objects.filter(created_at__gte=month_start).count(),
             "revenue": revenue or 0,

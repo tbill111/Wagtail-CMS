@@ -1,14 +1,15 @@
 from django.urls import reverse
 from wagtail import hooks
 from wagtail.admin.menu import MenuItem
-from wagtail.admin.panels import FieldPanel, FieldRowPanel, InlinePanel, MultiFieldPanel
+from wagtail.admin.panels import FieldPanel, FieldRowPanel, InlinePanel, MultiFieldPanel, ObjectList
 from wagtail.admin.ui.tables import BooleanColumn
 from wagtail.permission_policies.base import ModelPermissionPolicy
 from wagtail.permissions import register_permission_policy
 from wagtail.snippets.models import register_snippet
 from wagtail.snippets.views.snippets import SnippetViewSet, SnippetViewSetGroup
 
-from .models import AIReport, Customer, InteractionLog, Order
+from .forms import OrderAdminForm
+from .models import AIReport, Customer, InteractionLog, Order, Product
 
 
 class CustomerViewSet(SnippetViewSet):
@@ -64,10 +65,48 @@ class OrderViewSet(SnippetViewSet):
     list_display = ["code", "customer", "status", "total_amount", "created_at"]
     list_filter = ["status", "customer"]
     search_fields = ["code", "customer__name", "customer__email", "note"]
+    edit_handler = ObjectList(
+        [
+            FieldRowPanel([FieldPanel("customer"), FieldPanel("status")]),
+            FieldPanel("note"),
+            InlinePanel(
+                "items",
+                heading="Sản phẩm trong đơn",
+                label="Dòng sản phẩm",
+                min_num=1,
+                panels=[
+                    FieldRowPanel([FieldPanel("product"), FieldPanel("product_name")]),
+                    FieldRowPanel([FieldPanel("quantity"), FieldPanel("unit_price")]),
+                ],
+            ),
+        ],
+        base_form_class=OrderAdminForm,
+    )
+
+
+class ProductViewSet(SnippetViewSet):
+    model = Product
+    icon = "tag"
+    menu_label = "Sản phẩm & tồn kho"
+    menu_order = 250
+    search_backend_name = None
+    list_display = [
+        "sku", "name", "price", "stock", "min_stock",
+        BooleanColumn("is_low_stock", label="Sắp hết hàng"), "track_stock", "is_active",
+    ]
+    list_filter = ["track_stock", "is_active"]
+    search_fields = ["sku", "name"]
     panels = [
-        FieldRowPanel([FieldPanel("customer"), FieldPanel("status")]),
-        FieldPanel("note"),
-        InlinePanel("items", heading="Sản phẩm trong đơn", label="Dòng sản phẩm", min_num=1),
+        FieldRowPanel([FieldPanel("sku"), FieldPanel("name")]),
+        FieldRowPanel([FieldPanel("price"), FieldPanel("unit")]),
+        MultiFieldPanel(
+            [
+                FieldPanel("track_stock"),
+                FieldRowPanel([FieldPanel("stock"), FieldPanel("min_stock")]),
+            ],
+            heading="Tồn kho",
+        ),
+        FieldPanel("is_active"),
     ]
 
 
@@ -124,7 +163,7 @@ class CRMViewSetGroup(SnippetViewSetGroup):
     menu_label = "CRM"
     menu_icon = "group"
     menu_order = 150
-    items = (CustomerViewSet, OrderViewSet, InteractionLogViewSet, AIReportViewSet)
+    items = (CustomerViewSet, OrderViewSet, ProductViewSet, InteractionLogViewSet, AIReportViewSet)
 
 
 register_snippet(CRMViewSetGroup)

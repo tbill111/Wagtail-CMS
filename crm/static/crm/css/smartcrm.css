@@ -174,3 +174,8 @@ a { text-decoration: none; }
     .sc-stat-value { font-size: 1.25rem; }
     .sc-hero { padding: 2rem 1rem; }
 }
+
+/* ---------- Biểu đồ Tổng quan & cảnh báo tồn kho ---------- */
+.sc-chart { position: relative; height: 260px; }
+.sc-chart-table summary { cursor: pointer; }
+.sc-warning-card { border-left: 4px solid #f59e0b; }

@@ -1,7 +1,13 @@
 {% extends "crm/base.html" %}
-{% load crm_tags %}
+{% load crm_tags static %}
 
 {% block title %}Tổng quan{% endblock %}
+
+{% block extra_js %}
+{{ charts|json_script:"dashboard-charts" }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+<script src="{% static 'crm/js/dashboard.js' %}"></script>
+{% endblock %}
 
 {% block content %}
 <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-4">
@@ -37,6 +43,66 @@
             <div class="sc-stat-value">{{ stats.recent_interactions }}</div>
         </div>
     </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-lg-8">
+        {% include "crm/_chart_card.html" with chart_id="revenue" title="Doanh thu theo tháng" subtitle="Đơn hàng Hoàn thành, 12 tháng gần nhất" %}
+    </div>
+    <div class="col-lg-4">
+        {% include "crm/_chart_card.html" with chart_id="status" title="Khách hàng theo trạng thái" subtitle="Số khách ở mỗi giai đoạn" %}
+    </div>
+    <div class="col-lg-6">
+        {% include "crm/_chart_card.html" with chart_id="customers" title="Top 5 khách chi tiêu nhiều" subtitle="Tổng giá trị đơn Hoàn thành" %}
+    </div>
+    <div class="col-lg-6">
+        {% include "crm/_chart_card.html" with chart_id="products" title="Top 5 sản phẩm bán chạy" subtitle="Số lượng đã bán trong đơn Hoàn thành" %}
+    </div>
+</div>
+
+<div class="sc-card mb-4 {% if low_stock_products %}sc-warning-card{% endif %}" id="low-stock-card">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <h2 class="h5 mb-0">
+            {% if low_stock_products %}<span aria-hidden="true">⚠️</span>{% endif %}
+            Sản phẩm sắp hết hàng
+            <span class="badge {% if low_stock_products %}text-bg-warning{% else %}text-bg-success{% endif %} ms-1">{{ stats.low_stock }}/{{ stats.products }}</span>
+        </h2>
+        <a href="{% url 'wagtailsnippets_crm_product:list' %}" class="small">Quản lý sản phẩm &amp; tồn kho</a>
+    </div>
+    {% if low_stock_products %}
+    <div class="table-responsive">
+        <table class="table align-middle mb-0">
+            <thead>
+            <tr>
+                <th>SKU</th>
+                <th>Sản phẩm</th>
+                <th class="text-end">Tồn kho</th>
+                <th class="text-end">Tối thiểu</th>
+                <th>Tình trạng</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for p in low_stock_products %}
+            <tr>
+                <td class="font-monospace small">{{ p.sku }}</td>
+                <td>{{ p.name }}</td>
+                <td class="text-end fw-semibold">{{ p.stock }} {{ p.unit }}</td>
+                <td class="text-end text-muted">{{ p.min_stock }}</td>
+                <td>
+                    {% if p.stock == 0 %}
+                    <span class="badge text-bg-danger">✕ Hết hàng</span>
+                    {% else %}
+                    <span class="badge text-bg-warning">! Cần nhập thêm</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="sc-empty">✓ Tất cả sản phẩm đều còn đủ hàng.</div>
+    {% endif %}
 </div>
 
 <div class="sc-card ai-card mb-4" id="high-priority-card">
