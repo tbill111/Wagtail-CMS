@@ -8,6 +8,8 @@ SmartCRM là một hệ thống CRM (quản trị quan hệ khách hàng) cơ b�
 2. **Phân loại khách hàng AI**: Phân tích cảm xúc tương tác (Tích cực / Trung lập / Tiêu cực), mức độ ưu tiên (Cao / Trung bình / Thấp), đề xuất trạng thái và tóm tắt hành động tiếp theo.
 3. **Báo cáo nhận định nhanh AI**: Tự động tổng hợp số liệu CSDL và đưa ra nhận định kinh doanh 3 phần: Tình hình chung, Rủi ro cần chú ý, Đề xuất hành động.
 
+> **TH1 (cá nhân) – Tích hợp Apache Superset:** PostgreSQL + Superset trong Docker, tầng view `analytics`, tài khoản chỉ đọc, dashboard và kiểm tra số liệu – xem [docs/TH1_SUPERSET.md](docs/TH1_SUPERSET.md).
+
 ## Mục lục
 1. [Luồng dữ liệu](#1-luồng-dữ-liệu)
 2. [Checklist 01–05 ↔ file](#2-checklist-0105--file)
@@ -165,6 +167,8 @@ Nếu tạo superuser **trước** khi seed, khách mẫu sẽ được gán cho
 | `POST /crm/api/customers/<id>/apply-status/` | Đổi trạng thái khách hàng sang trạng thái AI đề xuất |
 | <http://127.0.0.1:8000/crm/reports/> | Trang **Báo cáo AI**, nhận định kinh doanh dựa trên số liệu tổng hợp |
 | `POST /crm/api/reports/generate/` | Sinh báo cáo nhận định bằng AI |
+| <http://127.0.0.1:8000/crm/analytics/> | Trang **Phân tích**: dashboard Apache Superset nhúng trong SmartCRM (cần Superset đang chạy, xem [docs/TH1_SUPERSET.md](docs/TH1_SUPERSET.md#9-nhúng-dashboard-vào-smartcrm)) |
+| `POST /crm/api/analytics/guest-token/` | Ra `{ok, uuid, token}`: guest token ngắn hạn để trình duyệt hiển thị dashboard nhúng |
 
 Trang `/crm/` yêu cầu đăng nhập bằng tài khoản **staff**. Mã lỗi của API: `400` dữ liệu sai, `401` chưa đăng nhập,
 `403` không có quyền, `404` không có khách, `405` sai phương thức, `503` AI lỗi.

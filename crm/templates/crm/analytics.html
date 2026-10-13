@@ -1,0 +1,38 @@
+{% extends "crm/base.html" %}
+{% load static %}
+
+{% block title %}Phân tích{% endblock %}
+
+{% block main_class %}container-fluid px-3 px-lg-4 py-4{% endblock %}
+
+{% block content %}
+<div id="analytics-page"
+     data-token-url="{% url 'crm:api_superset_guest_token' %}"
+     data-superset-url="{{ superset_url }}">
+    <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-3">
+        <div>
+            <h1 class="h3 mb-1">Phân tích kinh doanh</h1>
+            <p class="text-muted mb-0">Dashboard Apache Superset: doanh thu, sản phẩm, khách hàng, RFM và cohort. Dùng thanh lọc bên trái để chọn thời gian, nguồn khách.</p>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <button type="button" id="analytics-reload" class="btn btn-outline-primary">Tải lại</button>
+            <a href="{{ superset_dashboard_url }}" class="btn btn-primary" target="_blank" rel="noopener">Mở trong Superset</a>
+        </div>
+    </div>
+
+    {% csrf_token %}
+
+    <div class="sc-card sc-superset-card">
+        <div class="sc-empty" id="analytics-status" role="status">
+            <span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
+            Đang tải dashboard từ Superset…
+        </div>
+        <div class="sc-superset d-none" id="superset-container"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/@superset-ui/embedded-sdk@0.1.3/bundle/index.js" crossorigin="anonymous"></script>
+<script src="{% static 'crm/js/superset.js' %}"></script>
+{% endblock %}

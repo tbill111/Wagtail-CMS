@@ -14,7 +14,7 @@ from django.views.decorators.http import require_GET, require_POST
 
 from . import analytics
 from .models import AIReport, Customer, InteractionLog, OrderItem, Product
-from .services import AIServiceError, get_ai_service
+from .services import AIServiceError, get_ai_service, superset
 from .services.ai_service import ALLOWED_TONES, DEFAULT_TONE
 from .templatetags.crm_tags import status_badge
 
@@ -331,3 +331,27 @@ def api_generate_report(request):
             "created_by": request.user.get_username(),
         },
     })
+
+
+# ------------------------------------------------- Dashboard Superset nhúng
+@require_GET
+@staff_required
+def analytics_page(request):
+    response = render(request, "crm/analytics.html", {
+        "superset_url": settings.SUPERSET_URL,
+        "superset_dashboard_url": f"{settings.SUPERSET_URL}/superset/dashboard/{settings.SUPERSET_DASHBOARD_SLUG}/",
+    })
+    # Superset kiểm tra Referer của iframe với danh sách địa chỉ được phép nhúng;
+    # mặc định Django (same-origin) không gửi Referer sang cổng khác.
+    response["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
+
+
+@require_POST
+@api_staff_required
+def api_superset_guest_token(request):
+    try:
+        credentials = superset.embed_credentials(request.user)
+    except superset.SupersetError as exc:
+        return json_error(str(exc), 503)
+    return JsonResponse({"ok": True, **credentials})

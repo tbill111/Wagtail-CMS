@@ -179,3 +179,14 @@ a { text-decoration: none; }
 .sc-chart { position: relative; height: 260px; }
 .sc-chart-table summary { cursor: pointer; }
 .sc-warning-card { border-left: 4px solid #f59e0b; }
+
+/* ---------- Dashboard Superset nhúng (trang Phân tích) ---------- */
+.sc-superset-card { padding: .5rem; }
+.sc-superset iframe {
+    display: block;
+    width: 100%;
+    height: calc(100vh - 230px);
+    min-height: 640px;
+    border: 0;
+    border-radius: calc(var(--sc-radius) - 4px);
+}
