@@ -38,7 +38,10 @@ lòng; quản lý theo dõi xu hướng cảm xúc theo kênh và theo thời gi
 | Phương pháp | Accuracy | **Macro F1** | F1 Tích cực | F1 Trung lập | F1 Tiêu cực | Thời gian / câu |
 |---|---|---|---|---|---|---|
 | Từ điển từ khoá ★ | **0,688** | **0,582** | **0,844** | **0,293** | 0,610 | < 1 ms |
-| LLM (Gemini + AI dự phòng) | 0,667 | 0,575 | 0,785 | 0,220 | **0,719** | ≈ 1.096 ms |
+| LLM (Gemini + AI dự phòng) | 0,667 | 0,575 | 0,785 | 0,220 | **0,719** | ≈ 1.096 ms* |
+
+\* Thời gian mỗi lô chia đều cho 20 câu, **gồm cả thời gian chờ thử lại** khi Gemini/Groq báo hết hạn mức; thời gian xử
+lý thực của LLM thấp hơn con số này.
 
 ★ = phương pháp được chọn (`is_selected`, macro F1 cao nhất).
 

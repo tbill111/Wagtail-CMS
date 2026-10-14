@@ -69,7 +69,7 @@ flowchart LR
 | Lấy mẫu | 2.000 khách, `random_state=42` | Đủ lớn cho học máy, nạp nhanh; mọi máy ra cùng một bộ |
 | Thời gian | Dời **+14 năm** (12/2009 → 12/2023, 12/2011 → 12/2025), giờ gốc coi là giờ Việt Nam | Giữ nguyên tháng nên giữ mùa vụ; dữ liệu gần hiện tại |
 | Tiền tệ | 1 GBP = 33.000 VNĐ (tỉ giá cố định), làm tròn đến đồng | Thống nhất đơn vị VNĐ với SmartCRM |
-| Trạng thái đơn | Hoá đơn mã `C…` → **Huỷ**, còn lại → **Hoàn thành** | Theo quy ước của bộ dữ liệu |
+| Trạng thái đơn | Hoá đơn mã `C…` → **Huỷ**, còn lại → **Hoàn thành** | Theo quy ước của bộ dữ liệu (mã C = hoá đơn huỷ) |
 | Dòng sản phẩm | Gộp dòng cùng hoá đơn, cùng mã hàng, cùng đơn giá | Giữ đúng doanh thu |
 | Sản phẩm | `track_stock=False` | Bộ dữ liệu không có tồn kho |
 | Khách hàng | Tên `Khách UK-<mã>`, email `uk<mã>@khach.smartcrm.local`, nguồn Website; quốc gia ghi trong ghi chú đơn | Bộ dữ liệu đã ẩn danh, không có tên thật |
@@ -78,6 +78,10 @@ flowchart LR
 - **Kết quả nạp:** 2.000 khách, 14.680 đơn (2.370 đơn huỷ), 255.715 dòng sản phẩm, 4.424 sản phẩm;
   thời gian 01/12/2023 – 09/12/2025; **ngày tham chiếu 09/12/2025**; doanh thu đơn Hoàn thành
   **186.513.155.070 VNĐ**; 24 tháng trọn vẹn (12/2023 – 11/2025); 805 khách Đã rời bỏ.
+- ⚠️ **Hạn chế:** trong bộ dữ liệu, hoá đơn `C…` là hoá đơn **huỷ của một hoá đơn đã bán trước đó** (2.370 hoá đơn,
+  10.235.964.090 VNĐ ≈ 5,5% doanh thu). Nhóm giữ quy ước của SmartCRM: doanh thu = tổng đơn Hoàn thành, **không trừ** phần
+  huỷ này, nên doanh thu là doanh thu gộp (gross); doanh thu thuần ≈ 176,3 tỷ. Quy ước giống nhau ở mọi nơi (trang
+  Tổng quan, view, mô hình, dashboard) nên các số vẫn khớp nhau.
 
 ### Văn bản cảm xúc – nhận xét sản phẩm tiếng Việt
 - **Nguồn:** Hugging Face `anotherpolarbear/vietnamese-sentiment-analysis`, giấy phép **MIT** theo trang dữ liệu:

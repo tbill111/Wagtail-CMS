@@ -117,7 +117,8 @@ Số thực làm tròn 4 chữ số. Tiền làm tròn đến đồng.
 
 - File: `insights/pipeline/<module>.py`, mỗi file có hàm **`run(batch: str) -> list[ModelRun]`**.
 - Đăng ký trong `insights/pipeline/__init__.py`: `MODULES = {"forecast": ..., "churn": ..., "sentiment": ...}`.
-- Chạy: `python manage.py run_ai_pipeline` (tất cả) hoặc `--only forecast churn`. Lệnh tự xoá batch `demo` trước khi ghi.
+- Chạy: `python manage.py run_ai_pipeline` (tất cả) hoặc `--only forecast churn`. Lệnh xoá dữ liệu giả (batch `demo`)
+  của **đúng các module đang chạy**; module chưa chạy giữ dữ liệu giả để dashboard vẫn có số.
 - Mỗi phương pháp chạy trong `transaction.atomic()`; lỗi thì ghi `ModelRun(status="failed", notes=...)`, không làm dừng
   các phương pháp khác.
 - Hằng số dùng chung đặt ở `insights/conf.py`: `CHURN_WINDOW_DAYS = 180`, `BACKTEST_MONTHS = 6`, `FORECAST_HORIZON = 6`,
