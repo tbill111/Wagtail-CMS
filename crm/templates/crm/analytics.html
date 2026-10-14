@@ -8,17 +8,30 @@
 {% block content %}
 <div id="analytics-page"
      data-token-url="{% url 'crm:api_superset_guest_token' %}"
-     data-superset-url="{{ superset_url }}">
+     data-superset-url="{{ superset_url }}"
+     data-dashboard="{{ current.0 }}"
+     data-dashboard-title="{{ current.1 }}">
     <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-3">
         <div>
             <h1 class="h3 mb-1">Phân tích kinh doanh</h1>
-            <p class="text-muted mb-0">Dashboard Apache Superset: doanh thu, sản phẩm, khách hàng, RFM và cohort. Dùng thanh lọc bên trái để chọn thời gian, nguồn khách.</p>
+            <p class="text-muted mb-0">Dashboard Apache Superset nhúng trong SmartCRM. <strong>AI Insights</strong>: dự báo doanh thu, khách sắp rời bỏ, cảm xúc khách hàng. <strong>Phân tích kinh doanh</strong>: doanh thu, sản phẩm, RFM, cohort. Dùng thanh lọc bên trái để lọc dữ liệu.</p>
         </div>
         <div class="d-flex flex-wrap gap-2">
             <button type="button" id="analytics-reload" class="btn btn-outline-primary">Tải lại</button>
             <a href="{{ superset_dashboard_url }}" class="btn btn-primary" target="_blank" rel="noopener">Mở trong Superset</a>
         </div>
     </div>
+
+    {% if dashboards|length > 1 %}
+    <ul class="nav nav-tabs mb-3" role="tablist">
+        {% for key, title, slug in dashboards %}
+        <li class="nav-item">
+            <a class="nav-link {% if key == current.0 %}active{% endif %}" href="?tab={{ key }}"
+               {% if key == current.0 %}aria-current="page"{% endif %}>{{ title }}</a>
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
 
     {% csrf_token %}
 

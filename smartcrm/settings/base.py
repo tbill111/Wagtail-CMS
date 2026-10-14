@@ -238,7 +238,14 @@ SUPERSET_URL = (
 ).rstrip("/")
 SUPERSET_ADMIN_USER = os.getenv("SUPERSET_ADMIN_USER", "admin").strip()
 SUPERSET_ADMIN_PASSWORD = os.getenv("SUPERSET_ADMIN_PASSWORD", "")
-SUPERSET_DASHBOARD_SLUG = "smartcrm-th1"
+# Các dashboard nhúng ở trang Phân tích, theo thứ tự tab: (khoá trên URL, tên tab, slug trên Superset).
+# Đổi bằng biến SUPERSET_DASHBOARDS="ai:AI Insights:smartcrm-ai-insights,kinh-doanh:Phân tích kinh doanh:smartcrm-th1"
+SUPERSET_DASHBOARDS = [
+    tuple(part.strip() for part in item.split(":", 2))
+    for item in (os.getenv("SUPERSET_DASHBOARDS", "").strip()
+                 or "ai:AI Insights:smartcrm-ai-insights,kinh-doanh:Phân tích kinh doanh:smartcrm-th1").split(",")
+    if item.count(":") >= 2
+]
 
 LOGGING = {
     "version": 1,

@@ -1,21 +1,28 @@
-"""TH2 – tạo kết nối "SmartCRM TH2 (chỉ đọc)" và 4 dataset kết quả AI (schema ai) trên Apache Superset qua REST API.
+"""TH2 – tạo kết nối "SmartCRM TH2 (chỉ đọc)", 4 dataset kết quả AI (schema ai) và khung dashboard AI Insights.
 
     python superset/bootstrap_th2.py
+
+Dashboard "SmartCRM – AI Insights" (slug smartcrm-ai-insights): nếu chưa có thì tạo khung gồm tab "Tổng quan" với các
+biểu đồ "[Tổng quan] …" đã có; nếu đã có thì GIỮ NGUYÊN bố cục (do Hoàng Anh dựng), chỉ bật chế độ nhúng vào SmartCRM.
 
 Chạy trên máy (ngoài Docker) bằng venv của dự án, sau khi đã chạy sql/superset/01, 02, 03 trên CSDL smartcrm_th2.
 Không đụng vào kết nối, dataset, dashboard của TH1. Chạy lại nhiều lần không sao (cập nhật nhãn cột, metric).
 Đọc .env: SUPERSET_PORT, SUPERSET_ADMIN_USER/PASSWORD, SUPERSET_RO_PASSWORD, TH2_DB_NAME (mặc định smartcrm_th2).
 """
 
+import json
 import os
 import sys
 from pathlib import Path
 from urllib.parse import quote_plus
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from bootstrap_dashboard import SUPERSET_URL, Superset  # noqa: E402  (dùng lại lớp gọi API của TH1)
+from bootstrap_dashboard import SUPERSET_URL, Superset, ensure_embedding  # noqa: E402  (dùng lại phần của TH1)
 
 DATABASE_NAME = "SmartCRM TH2 (chỉ đọc)"
+DASHBOARD_SLUG = "smartcrm-ai-insights"
+DASHBOARD_TITLE = "SmartCRM – AI Insights"
+OVERVIEW_PREFIX = "[Tổng quan]"
 SCHEMA = "ai"
 PCT = ".1%"
 VND = ",d"
@@ -121,6 +128,55 @@ def ensure_dataset(api, database_id, table, main_dttm, labels, metrics):
     return dataset_id
 
 
+def build_overview_position(charts):
+    """Bố cục khung: 1 tab "Tổng quan", mỗi hàng 2 biểu đồ."""
+    position = {
+        "DASHBOARD_VERSION_KEY": "v2",
+        "ROOT_ID": {"type": "ROOT", "id": "ROOT_ID", "children": ["TABS-ai"]},
+        "TABS-ai": {"type": "TABS", "id": "TABS-ai", "children": ["TAB-tong-quan"], "parents": ["ROOT_ID"]},
+        "TAB-tong-quan": {"type": "TAB", "id": "TAB-tong-quan", "children": [], "parents": ["ROOT_ID", "TABS-ai"],
+                          "meta": {"text": "Tổng quan", "defaultText": "Tab title"}},
+        "HEADER_ID": {"type": "HEADER", "id": "HEADER_ID", "meta": {"text": DASHBOARD_TITLE}},
+    }
+    parents = ["ROOT_ID", "TABS-ai", "TAB-tong-quan"]
+    for index in range(0, len(charts), 2):
+        row_id = f"ROW-{index // 2}"
+        position["TAB-tong-quan"]["children"].append(row_id)
+        position[row_id] = {"type": "ROW", "id": row_id, "children": [], "parents": parents,
+                            "meta": {"background": "BACKGROUND_TRANSPARENT"}}
+        for chart in charts[index:index + 2]:
+            element = f"CHART-{chart['id']}"
+            position[row_id]["children"].append(element)
+            position[element] = {"type": "CHART", "id": element, "children": [], "parents": parents + [row_id],
+                                 "meta": {"chartId": chart["id"], "width": 6, "height": 60,
+                                          "sliceName": chart["slice_name"]}}
+    return position
+
+
+def ensure_dashboard(api):
+    existing = api.find("dashboard", slug=DASHBOARD_SLUG)
+    if existing:
+        print(f"  ✓ Dashboard '{DASHBOARD_SLUG}' đã có (id={existing['id']}) – giữ nguyên bố cục")
+        ensure_embedding(api, existing["id"])
+        return existing["id"]
+    charts = sorted((c for c in api.call("GET", "/api/v1/chart/", params={"q": "(page_size:100)"})["result"]
+                     if c["slice_name"].startswith(OVERVIEW_PREFIX)), key=lambda c: c["id"])
+    dashboard_id = api.call("POST", "/api/v1/dashboard/", json={
+        "dashboard_title": DASHBOARD_TITLE, "slug": DASHBOARD_SLUG, "published": True,
+    })["id"]
+    for chart in charts:
+        current = api.call("GET", f"/api/v1/chart/{chart['id']}")["result"]
+        ids = sorted({d["id"] for d in current.get("dashboards", [])} | {dashboard_id})
+        api.call("PUT", f"/api/v1/chart/{chart['id']}", json={"dashboards": ids})
+    api.call("PUT", f"/api/v1/dashboard/{dashboard_id}", json={
+        "position_json": json.dumps(build_overview_position(charts)),
+        "json_metadata": json.dumps({"color_scheme": "supersetColors", "cross_filters_enabled": True}),
+    })
+    print(f"  ✓ Tạo khung dashboard '{DASHBOARD_TITLE}' (id={dashboard_id}) với {len(charts)} biểu đồ Tổng quan")
+    ensure_embedding(api, dashboard_id)
+    return dashboard_id
+
+
 def main():
     user = os.getenv("SUPERSET_ADMIN_USER", "admin")
     password = os.environ.get("SUPERSET_ADMIN_PASSWORD")
@@ -131,6 +187,8 @@ def main():
     database_id = ensure_database(api)
     for table, (main_dttm, labels, metrics) in DATASETS.items():
         ensure_dataset(api, database_id, table, main_dttm, labels, metrics)
+    ensure_dashboard(api)
+    print(f"  ✓ Dashboard: {SUPERSET_URL}/superset/dashboard/{DASHBOARD_SLUG}/")
 
 
 if __name__ == "__main__":

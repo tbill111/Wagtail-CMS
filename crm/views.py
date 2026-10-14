@@ -337,9 +337,12 @@ def api_generate_report(request):
 @require_GET
 @staff_required
 def analytics_page(request):
+    current = superset.dashboard_by_key(request.GET.get("tab")) or superset.dashboard_by_key()
     response = render(request, "crm/analytics.html", {
         "superset_url": settings.SUPERSET_URL,
-        "superset_dashboard_url": f"{settings.SUPERSET_URL}/superset/dashboard/{settings.SUPERSET_DASHBOARD_SLUG}/",
+        "dashboards": settings.SUPERSET_DASHBOARDS,
+        "current": current,
+        "superset_dashboard_url": f"{settings.SUPERSET_URL}/superset/dashboard/{current[2]}/",
     })
     # Superset kiểm tra Referer của iframe với danh sách địa chỉ được phép nhúng;
     # mặc định Django (same-origin) không gửi Referer sang cổng khác.
@@ -350,8 +353,12 @@ def analytics_page(request):
 @require_POST
 @api_staff_required
 def api_superset_guest_token(request):
+    data = parse_json_body(request) or {}
+    dashboard = superset.dashboard_by_key(data.get("dashboard"))
+    if dashboard is None:
+        return json_error("Dashboard không hợp lệ.", 400)
     try:
-        credentials = superset.embed_credentials(request.user)
+        credentials = superset.embed_credentials(request.user, dashboard[2])
     except superset.SupersetError as exc:
         return json_error(str(exc), 503)
     return JsonResponse({"ok": True, **credentials})

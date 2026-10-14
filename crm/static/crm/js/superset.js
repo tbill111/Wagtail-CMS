@@ -29,7 +29,7 @@
 
             let first;
             try {
-                first = await SmartCRM.postJSON(page.dataset.tokenUrl);
+                first = await SmartCRM.postJSON(page.dataset.tokenUrl, { dashboard: page.dataset.dashboard });
             } catch (err) {
                 showError(err.message);
                 return;
@@ -43,7 +43,8 @@
                     cachedToken = null;
                     return Promise.resolve(token);
                 }
-                return SmartCRM.postJSON(page.dataset.tokenUrl).then(function (data) { return data.token; });
+                return SmartCRM.postJSON(page.dataset.tokenUrl, { dashboard: page.dataset.dashboard })
+                    .then(function (data) { return data.token; });
             }
 
             container.classList.remove("d-none");
@@ -59,7 +60,7 @@
                     }
                 });
                 const frame = container.querySelector("iframe");
-                if (frame) frame.title = "Dashboard Superset – Phân tích kinh doanh";
+                if (frame) frame.title = "Dashboard Superset – " + page.dataset.dashboardTitle;
                 status.classList.add("d-none");
             } catch (err) {
                 showError("Không hiển thị được dashboard Superset. Vui lòng thử tải lại.");

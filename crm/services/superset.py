@@ -22,8 +22,8 @@ def _call(client, method, path, **kwargs):
     response = client.request(method, path, **kwargs)
     if response.status_code == 404:
         raise SupersetError(
-            f"Dashboard '{settings.SUPERSET_DASHBOARD_SLUG}' chưa có hoặc chưa bật nhúng. "
-            "Hãy chạy: python superset/bootstrap_dashboard.py"
+            f"Không tìm thấy trên Superset ({path}). Dashboard chưa có hoặc chưa bật nhúng – "
+            "chạy python superset/bootstrap_dashboard.py (TH1) hoặc python superset/bootstrap_th2.py (TH2)."
         )
     if response.status_code in (401, 403):
         raise SupersetError("Superset từ chối tài khoản cấu hình trong .env (SUPERSET_ADMIN_USER/PASSWORD).")
@@ -33,8 +33,16 @@ def _call(client, method, path, **kwargs):
     return response.json()
 
 
-def embed_credentials(user):
-    """Trả về ``{"uuid": ..., "token": ...}`` để Embedded SDK hiển thị dashboard cho ``user``."""
+def dashboard_by_key(key=None):
+    """(khoá, tên tab, slug) của dashboard theo khoá trên URL; không có khoá thì lấy tab đầu tiên."""
+    dashboards = settings.SUPERSET_DASHBOARDS
+    if not key:
+        return dashboards[0]
+    return next((item for item in dashboards if item[0] == key), None)
+
+
+def embed_credentials(user, slug):
+    """Trả về ``{"uuid": ..., "token": ...}`` để Embedded SDK hiển thị dashboard ``slug`` cho ``user``."""
     if not settings.SUPERSET_ADMIN_PASSWORD:
         raise SupersetError("Chưa cấu hình Superset: thiếu SUPERSET_ADMIN_PASSWORD trong .env.")
 
@@ -45,7 +53,7 @@ def embed_credentials(user):
                 "provider": "db", "refresh": False,
             })
             client.headers["Authorization"] = f"Bearer {login['access_token']}"
-            embedded = _call(client, "GET", f"/api/v1/dashboard/{settings.SUPERSET_DASHBOARD_SLUG}/embedded")
+            embedded = _call(client, "GET", f"/api/v1/dashboard/{slug}/embedded")
             uuid = embedded["result"]["uuid"]
             csrf = _call(client, "GET", "/api/v1/security/csrf_token/")["result"]
             token = _call(
