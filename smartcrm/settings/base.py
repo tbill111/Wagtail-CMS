@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     "home",
     "crm",
     "care",
+    "insights",
     "wagtail.contrib.forms",
     "wagtail.contrib.redirects",
     "wagtail.embeds",
