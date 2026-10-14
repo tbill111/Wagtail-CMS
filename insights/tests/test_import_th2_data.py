@@ -2,9 +2,11 @@ import shutil
 import tempfile
 from io import StringIO
 from pathlib import Path
+from unittest import mock
 
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.db import connection
 from django.db.models import Sum
 from django.test import TestCase
 from django.utils import timezone
@@ -80,5 +82,10 @@ class ImportTh2DataTests(TestCase):
         self.assertEqual(sorted(Order.objects.values_list("code", "status")), first)
 
     def test_refuses_non_th2_database_without_flag(self):
-        with self.assertRaisesMessage(CommandError, "smartcrm_th2"):
+        # cố định tên CSDL: khi chạy test với DB_NAME=smartcrm_th2 thì CSDL test cũng có đuôi _th2
+        with mock.patch.dict(connection.settings_dict, {"NAME": "test_smartcrm"}), \
+                self.assertRaisesMessage(CommandError, "smartcrm_th2"):
             self.run_import(allow_any_db=False)
+        with mock.patch.dict(connection.settings_dict, {"NAME": "test_smartcrm_th2"}):
+            self.run_import(allow_any_db=False)
+        self.assertEqual(Customer.objects.count(), 3)
