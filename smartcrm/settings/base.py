@@ -240,12 +240,17 @@ SUPERSET_ADMIN_USER = os.getenv("SUPERSET_ADMIN_USER", "admin").strip()
 SUPERSET_ADMIN_PASSWORD = os.getenv("SUPERSET_ADMIN_PASSWORD", "")
 # Các dashboard nhúng ở trang Phân tích, theo thứ tự tab: (khoá trên URL, tên tab, slug trên Superset).
 # Đổi bằng biến SUPERSET_DASHBOARDS="ai:AI Insights:smartcrm-ai-insights,kinh-doanh:Phân tích kinh doanh:smartcrm-th1"
-SUPERSET_DASHBOARDS = [
-    tuple(part.strip() for part in item.split(":", 2))
-    for item in (os.getenv("SUPERSET_DASHBOARDS", "").strip()
-                 or "ai:AI Insights:smartcrm-ai-insights,kinh-doanh:Phân tích kinh doanh:smartcrm-th1").split(",")
-    if item.count(":") >= 2
-]
+DEFAULT_SUPERSET_DASHBOARDS = "ai:AI Insights:smartcrm-ai-insights,kinh-doanh:Phân tích kinh doanh:smartcrm-th1"
+
+
+def parse_dashboards(value):
+    items = [tuple(part.strip() for part in item.split(":", 2)) for item in value.split(",") if item.count(":") >= 2]
+    return [item for item in items if all(item)]
+
+
+# Biến môi trường sai định dạng thì dùng mặc định, không để trang Phân tích lỗi
+SUPERSET_DASHBOARDS = (parse_dashboards(os.getenv("SUPERSET_DASHBOARDS", ""))
+                       or parse_dashboards(DEFAULT_SUPERSET_DASHBOARDS))
 
 LOGGING = {
     "version": 1,

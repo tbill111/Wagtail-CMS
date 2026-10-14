@@ -115,6 +115,13 @@ class AnalyticsViewTests(TestCase):
         self.assertEqual(response.json(), {"ok": True, "uuid": UUID, "token": "t"})
         fake.assert_called_once_with(self.staff, "smartcrm-th1")
 
+    def test_dashboard_setting_parser_ignores_malformed_items(self):
+        from smartcrm.settings.base import parse_dashboards
+
+        self.assertEqual(parse_dashboards("ai:AI Insights:smartcrm-ai, sai-dinh-dang, x::y,:a:b"),
+                         [("ai", "AI Insights", "smartcrm-ai")])
+        self.assertEqual(parse_dashboards(""), [])
+
     def test_token_api_defaults_to_first_tab_and_rejects_unknown_dashboard(self):
         self.client.force_login(self.staff)
         with mock.patch.object(superset, "embed_credentials", return_value={"uuid": UUID, "token": "t"}) as fake:

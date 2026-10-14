@@ -92,7 +92,8 @@ def ensure_database(api):
 
 
 def find_dataset(api, database_id, table):
-    rows = api.call("GET", "/api/v1/dataset/", params={"q": "(page_size:100)"})["result"]
+    rows = api.call("GET", "/api/v1/dataset/", params={
+        "q": f"(filters:!((col:table_name,opr:eq,value:{table})),page_size:100)"})["result"]
     return next((row for row in rows if row["table_name"] == table and row["schema"] == SCHEMA
                  and row["database"]["id"] == database_id), None)
 
@@ -159,8 +160,9 @@ def ensure_dashboard(api):
         print(f"  ✓ Dashboard '{DASHBOARD_SLUG}' đã có (id={existing['id']}) – giữ nguyên bố cục")
         ensure_embedding(api, existing["id"])
         return existing["id"]
-    charts = sorted((c for c in api.call("GET", "/api/v1/chart/", params={"q": "(page_size:100)"})["result"]
-                     if c["slice_name"].startswith(OVERVIEW_PREFIX)), key=lambda c: c["id"])
+    found = api.call("GET", "/api/v1/chart/", params={
+        "q": "(filters:!((col:slice_name,opr:ct,value:'Tổng quan')),page_size:100)"})["result"]
+    charts = sorted((c for c in found if c["slice_name"].startswith(OVERVIEW_PREFIX)), key=lambda c: c["id"])
     dashboard_id = api.call("POST", "/api/v1/dashboard/", json={
         "dashboard_title": DASHBOARD_TITLE, "slug": DASHBOARD_SLUG, "published": True,
     })["id"]
