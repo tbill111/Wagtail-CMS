@@ -18,19 +18,19 @@ BƯỚC 0 – ĐỌC VÀ KIỂM TRA (bắt buộc):
 - Tạo nhánh: git checkout th2/main && git pull (nếu có remote) && git checkout -b th2/du-bao
 
 BƯỚC 1 – CHUỖI DOANH THU THÁNG:
-Viết hàm lấy doanh thu theo tháng từ ORM: Σ quantity × unit_price của đơn status="completed", gom theo tháng giờ
-Asia/Ho_Chi_Minh, từ tháng đầu có đơn đến tháng trọn vẹn cuối cùng tính theo insights.conf.reference_date() (bỏ tháng
-chưa hết). Tháng không có đơn = 0. Trả về pandas Series có tần suất tháng (MS). Kiểm tra tổng chuỗi bằng tổng doanh thu
-đơn Hoàn thành trong cùng khoảng.
+Dùng hàm có sẵn insights.data.monthly_revenue_series() (đúng quy ước doanh thu của nhóm, KHÔNG viết lại). In ra số
+tháng, tháng đầu, tháng cuối và tổng; dữ liệu thật hiện có 24 tháng trọn vẹn (12/2023 – 11/2025).
 
 BƯỚC 2 – 3 PHƯƠNG PHÁP (file insights/pipeline/forecast.py, hàm run(batch) -> list[ModelRun]):
 - seasonal_naive: dự báo tháng t = doanh thu tháng t−12. Nếu chưa đủ 12 tháng lịch sử thì dùng tháng liền trước và ghi notes.
   Khoảng tin cậy 95% = dự báo ± 1,96 × độ lệch chuẩn sai số trên tập huấn luyện.
-- holt_winters: statsmodels ExponentialSmoothing, trend="add", seasonal="add", seasonal_periods=12 khi có ≥ 24 tháng
-  huấn luyện; ít hơn thì bỏ seasonal và ghi notes. Khoảng tin cậy 95% bằng mô phỏng (simulate) hoặc theo độ lệch sai số,
+- holt_winters: statsmodels ExponentialSmoothing, trend="add", seasonal="add", seasonal_periods=12.
+  LƯU Ý: khi backtest chỉ còn 18 tháng huấn luyện (< 2 chu kỳ). Thử initialization_method="estimated"; nếu statsmodels
+  báo lỗi hoặc không hội tụ thì dùng bản không mùa vụ cho backtest và ghi notes. Dự báo future (huấn luyện đủ 24
+  tháng) dùng bản có mùa vụ. Khoảng tin cậy 95% bằng mô phỏng (simulate) hoặc theo độ lệch sai số,
   ghi rõ cách làm trong params.
-- sarima: statsmodels SARIMAX order=(1,1,1), seasonal_order=(0,1,1,12) khi có ≥ 24 tháng huấn luyện, ngược lại (1,1,1)
-  không mùa vụ. Khoảng tin cậy 95% từ get_forecast().conf_int().
+- sarima: statsmodels SARIMAX order=(1,1,1), seasonal_order=(0,1,1,12) khi có ≥ 24 tháng huấn luyện, ngược lại thử
+  seasonal_order=(0,1,0,12) rồi mới đến (1,1,1) không mùa vụ; ghi cấu hình thực dùng vào params và notes. Khoảng tin cậy 95% từ get_forecast().conf_int().
 Dự báo không được âm: cắt về 0 và ghi notes nếu xảy ra.
 
 BƯỚC 3 – ĐÁNH GIÁ (backtest):
@@ -40,13 +40,15 @@ BƯỚC 3 – ĐÁNH GIÁ (backtest):
 - is_selected = phương pháp có mape nhỏ nhất. Phương pháp lỗi → status="failed", notes ghi lỗi, các phương pháp khác vẫn chạy.
 
 BƯỚC 4 – GHI KẾT QUẢ (đúng mục 4 hợp đồng, bảng RevenueForecast):
-Với MỖI phương pháp, 1 ModelRun(module="forecast", method=...) và các dòng:
+Với MỖI phương pháp, dùng insights.pipeline.base.run_method(batch, "forecast", method, func) – nó tự tạo ModelRun,
+bắt lỗi, làm tròn metrics; func(run) ghi các dòng dưới đây và trả về MethodResult. Cuối cùng gọi
+select_best(runs, "mape", higher_is_better=False). Các dòng cần ghi:
 - kind="history": mọi tháng huấn luyện, chỉ có actual.
 - kind="backtest": 6 tháng kiểm tra, có actual, forecast, lower, upper.
 - kind="future": huấn luyện lại trên TOÀN BỘ chuỗi rồi dự báo FORECAST_HORIZON (6) tháng tiếp theo, chỉ có forecast,
   lower, upper.
-Tiền làm tròn đến đồng. Mỗi phương pháp ghi trong transaction.atomic(). Đăng ký "forecast" vào MODULES trong
-insights/pipeline/__init__.py (chỉ thêm đúng dòng của mình, không sửa phần khác).
+Tiền làm tròn đến đồng. "forecast" đã được đăng ký sẵn trong insights/pipeline/__init__.py (MODULES), chỉ cần tạo
+đúng file insights/pipeline/forecast.py có hàm run(batch).
 
 BƯỚC 5 – TEST (insights/tests/test_forecast.py), dùng dữ liệu giả tự tạo trong test, không phụ thuộc dữ liệu nạp:
 - Chuỗi doanh thu: đơn Huỷ không tính, tháng trống = 0, bỏ tháng chưa trọn.
@@ -65,8 +67,7 @@ lấy từ ModelRun của batch vừa chạy, ghi mã batch. Giải thích chỉ
 đổi tiền; số tháng ít; chỉ dự báo tổng doanh thu.
 
 RÀNG BUỘC:
-- Chỉ tạo/sửa: insights/pipeline/forecast.py, insights/tests/test_forecast.py, docs/th2/bao_cao/02_du_bao.md, và đúng 1
-  dòng đăng ký trong insights/pipeline/__init__.py. Không sửa models, migrations, file của người khác, .env.
+- Chỉ tạo/sửa: insights/pipeline/forecast.py, insights/tests/test_forecast.py, docs/th2/bao_cao/02_du_bao.md. Không sửa models, migrations, file của người khác, .env.
 - Không thêm thư viện ngoài pandas, numpy, statsmodels, scikit-learn đã có. Không gọi mạng.
 - Commit nhỏ theo từng bước bằng tài khoản git của tôi. KHÔNG push – để tôi tự xem rồi push và mở Pull Request vào th2/main.
 

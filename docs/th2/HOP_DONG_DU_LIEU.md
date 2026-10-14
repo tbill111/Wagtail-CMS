@@ -51,9 +51,9 @@ Apache Superset 4.1.2 ◀── Superset MCP (aptro/superset-mcp) ◀── Clau
   - Hoá đơn mã bắt đầu bằng `C` → đơn **Huỷ**; còn lại → **Hoàn thành**.
   - Sản phẩm nhập về có `track_stock=False` (bộ dữ liệu không có tồn kho).
   - Khách không có tên/email thật → tên `Khách UK-<mã>`, email `uk<mã>@khach.smartcrm.local`, nguồn `website`.
-- **Văn bản cảm xúc:** một bộ nhận xét **tiếng Việt có nhãn sẵn** (Tùng chọn ở giai đoạn A, ghi tên và giấy phép vào
-  `docs/th2/bao_cao/01_kien_truc.md`), nạp thành `InteractionLog` gắn ngẫu nhiên (`random_state=42`) cho các khách đã mua,
-  nhãn đúng lưu ở `insights.SentimentLabel`. **Việc gắn văn bản vào khách là nhân tạo – phải ghi rõ trong báo cáo.**
+- **Văn bản cảm xúc:** Hugging Face `anotherpolarbear/vietnamese-sentiment-analysis` (MIT, nhận xét điện thoại tiếng
+  Việt 1–5 sao; 1–2 = tiêu cực, 3 = trung lập, 4–5 = tích cực), lấy mẫu phân tầng 3.000 câu, nạp thành
+  `InteractionLog` gắn ngẫu nhiên (`random_state=42`) cho các khách đã mua, nhãn đúng lưu ở `insights.SentimentLabel`. **Việc gắn văn bản vào khách là nhân tạo – phải ghi rõ trong báo cáo.**
 - **Ngày tham chiếu** (`reference_date`) = ngày của đơn hàng muộn nhất trong CSDL, **không dùng ngày hôm nay**.
   Lấy bằng `insights.conf.reference_date()`.
 - **Doanh thu** = Σ `quantity × unit_price` của đơn **Hoàn thành**, gom theo tháng **giờ Việt Nam** – đúng quy ước TH1.
@@ -126,7 +126,15 @@ Số thực làm tròn 4 chữ số. Tiền làm tròn đến đồng.
 - **Metrics phải tính lại được từ chính các dòng đã lưu của run** để lệnh `verify_ai_results` kiểm tra: dự báo tính trên
   các dòng `kind="backtest"`; cảm xúc tính trên toàn bộ `SentimentResult` của run. (Rời bỏ tính trên tập test không lưu
   từng dòng, nên chỉ kiểm tra tính hợp lệ, không tính lại.)
-- Thư viện (Tùng thêm vào `requirements.txt`, ghim phiên bản): `pandas`, `numpy`, `scikit-learn`, `statsmodels`.
+- Thư viện (đã ghim trong `requirements.txt`): `pandas`, `numpy`, `scikit-learn`, `statsmodels`, `openpyxl`.
+- **Hàm dùng chung đã có sẵn – nên dùng, đừng viết lại:**
+  - `insights.data.monthly_revenue_series()` → chuỗi doanh thu tháng đúng quy ước mục 3 (pandas Series, tần suất `MS`).
+  - `insights.pipeline.base.run_method(batch, module, method, func)` → tạo `ModelRun`, chạy `func(run)` trong
+    `transaction.atomic()`, bắt lỗi ghi `status="failed"`, làm tròn metrics. `func` ghi các dòng kết quả gắn với `run`
+    và trả về `MethodResult(metrics=..., n_rows=..., params=..., notes=...)`.
+  - `insights.pipeline.base.select_best(runs, metric, higher_is_better)` → đánh dấu đúng 1 `is_selected`.
+  - `insights.conf.risk_band(probability)` → `high` / `medium` / `low` theo ngưỡng.
+- **Dữ liệu thật có 24 tháng trọn vẹn** (12/2023 – 11/2025), ngày tham chiếu 09/12/2025.
 - Test đặt ở `insights/tests/test_<module>.py`, dùng **dữ liệu giả nhỏ tự tạo trong test**, không phụ thuộc dữ liệu nạp.
   Toàn bộ `python manage.py test` phải qua trước khi mở Pull Request.
 
@@ -136,10 +144,13 @@ Tất cả view chỉ lấy **batch thành công mới nhất** của từng mod
 
 | View | Cột |
 |---|---|
-| `ai.model_run` | `batch`, `module`, `method`, `is_selected`, `finished_at`, `mae`, `rmse`, `mape`, `auc`, `precision`, `recall`, `f1`, `accuracy`, `macro_f1`, `n_train`, `n_test` |
-| `ai.revenue_forecast` | `month`, `kind`, `method`, `is_selected`, `actual`, `forecast`, `lower`, `upper` |
-| `ai.churn_score` | `customer_id`, `customer_name`, `customer_type`, `customer_source`, `staff_name`, `last_order_date`, `total_spent`, `method`, `is_selected`, `probability`, `risk_band`, `risk_label` (Cao/Trung bình/Thấp) |
-| `ai.interaction_sentiment` | `interaction_date`, `channel`, `customer_name`, `method`, `is_selected`, `label_pred`, `label_true`, `is_correct` |
+| `ai.model_run` | `batch`, `module`, `module_label`, `method`, `method_label`, `is_selected`, `finished_at`, `mae`, `rmse`, `mape`, `auc`, `precision`, `recall`, `f1`, `accuracy`, `macro_f1`, `n_train`, `n_test`, `avg_latency_ms`, `is_demo` |
+| `ai.revenue_forecast` | `month`, `kind`, `kind_label`, `method`, `method_label`, `is_selected`, `actual`, `forecast`, `lower`, `upper`, `batch` |
+| `ai.churn_score` | `customer_id`, `customer_name`, `customer_type`, `customer_source`, `staff_name`, `last_order_date`, `total_spent`, `method`, `method_label`, `is_selected`, `probability`, `risk_band`, `risk_label` (1. Cao / 2. Trung bình / 3. Thấp), `batch` |
+| `ai.interaction_sentiment` | `interaction_id`, `interaction_date`, `channel`, `customer_name`, `method`, `method_label`, `is_selected`, `label_pred`, `label_true` (Tích cực/Trung lập/Tiêu cực), `is_correct`, `confidence`, `latency_ms`, `batch` |
+
+Superset: kết nối **"SmartCRM TH2 (chỉ đọc)"**, 4 dataset trên đã có nhãn cột tiếng Việt và metric dùng chung
+(`superset/bootstrap_th2.py`): `doanh_thu_thuc_te`, `doanh_thu_du_bao`, `can_duoi`, `can_tren`, `so_khach`, `rui_ro_tb`, `chi_tieu_rui_ro`, `so_cau`, `ti_le_dung`, `ti_le_tieu_cuc`.
 
 ## 8. Dashboard và biểu đồ
 

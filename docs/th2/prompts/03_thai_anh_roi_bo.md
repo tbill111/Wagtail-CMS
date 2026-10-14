@@ -27,7 +27,9 @@ BƯỚC 1 – ĐỊNH NGHĨA NHÃN VÀ ĐẶC TRƯNG (insights/pipeline/churn.py
   (as_of=R). Tính bằng ORM/pandas, tránh truy vấn từng khách một.
 - In ra tỉ lệ churn của tập. Nếu < 5% hoặc > 95% thì DỪNG LẠI báo tôi (nhãn lệch quá, cần bàn với Tùng).
 
-BƯỚC 2 – 3 PHƯƠNG PHÁP (run(batch) -> list[ModelRun]):
+BƯỚC 2 – 3 PHƯƠNG PHÁP (run(batch) -> list[ModelRun]). Mỗi phương pháp chạy qua
+insights.pipeline.base.run_method(batch, "churn", method, func) (tự tạo ModelRun, bắt lỗi, làm tròn metrics; func trả
+về MethodResult), cuối cùng select_best(runs, "auc", higher_is_better=True):
 - Chia train/test 70/30, phân tầng theo nhãn, random_state=42.
 - rfm_rule: không học máy – điểm = thứ hạng phần trăm của recency_days (càng lâu không mua càng cao), có thể kết hợp tần
   suất thấp; mô tả công thức trong params. Dùng điểm này làm "xác suất" để tính AUC.
@@ -41,8 +43,8 @@ is_selected = AUC lớn nhất. Phương pháp lỗi → status="failed", các p
 
 BƯỚC 4 – GHI KẾT QUẢ (bảng ChurnScore):
 Với MỖI phương pháp: huấn luyện lại trên toàn bộ tập có nhãn, rồi chấm điểm MỌI khách có ≥ 1 đơn Hoàn thành tính đến R
-bằng đặc trưng as_of=R. Ghi probability (0–1) và risk_band: high ≥ RISK_HIGH, medium ≥ RISK_MEDIUM, còn lại low.
-Dùng bulk_create, trong transaction.atomic(). Đăng ký "churn" vào MODULES (chỉ thêm đúng dòng của mình).
+bằng đặc trưng as_of=R. Ghi probability (0–1) và risk_band = insights.conf.risk_band(probability). Dùng bulk_create.
+"churn" đã được đăng ký sẵn trong MODULES, chỉ cần tạo đúng file insights/pipeline/churn.py có hàm run(batch).
 
 BƯỚC 5 – HIỂN THỊ TRÊN SMARTCRM (trang chi tiết khách /crm/customers/<id>/):
 - Thêm một khối nhỏ "Rủi ro rời bỏ" trong cột thông tin khách: "78% – Cao" với màu theo mức (dùng class Bootstrap sẵn
@@ -68,8 +70,7 @@ trọng, gợi ý hành động cho nhân viên. Hạn chế: định nghĩa r�
 
 RÀNG BUỘC:
 - Chỉ tạo/sửa: insights/pipeline/churn.py, insights/tests/test_churn.py, crm/templates/crm/_churn_risk.html, 1 dòng
-  include trong customer_detail.html, phần tối thiểu trong crm/views.py (customer_detail), 1 dòng đăng ký trong
-  insights/pipeline/__init__.py, docs/th2/bao_cao/03_roi_bo.md. Không sửa models, migrations, file của người khác, .env.
+  include trong customer_detail.html, phần tối thiểu trong crm/views.py (customer_detail), docs/th2/bao_cao/03_roi_bo.md. Không sửa models, migrations, file của người khác, .env.
 - Không thêm thư viện mới. Không gọi mạng.
 - Commit nhỏ theo bước bằng tài khoản git của tôi. KHÔNG push.
 

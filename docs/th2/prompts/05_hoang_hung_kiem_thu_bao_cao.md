@@ -27,8 +27,9 @@ insights/management/commands/verify_ai_results.py). CHỈ ĐỌC, không ghi gì
 của từng module (bỏ qua batch "demo", in cảnh báo nếu chỉ có demo):
   A. Chung: mỗi module có đúng 1 ModelRun is_selected trong batch; mọi ModelRun success có đủ khoá metrics theo mục 5
      hợp đồng; is_selected đúng tiêu chí (mape nhỏ nhất / auc lớn nhất / macro_f1 lớn nhất).
-  B. Dự báo: actual của các dòng history + backtest khớp doanh thu tháng tính lại từ ORM (Σ quantity × unit_price đơn
-     Hoàn thành, giờ VN), sai lệch ≤ 1 đồng; mỗi phương pháp có đúng 6 dòng future và 6 dòng backtest;
+  B. Dự báo: actual của các dòng history + backtest khớp doanh thu tháng TỰ TÍNH LẠI ĐỘC LẬP (Σ quantity × unit_price
+     đơn Hoàn thành, giờ VN – viết truy vấn riêng, KHÔNG dùng insights.data.monthly_revenue_series vì đó chính là
+     hàm đang được kiểm tra), sai lệch ≤ 1 đồng; mỗi phương pháp có đúng 6 dòng future và 6 dòng backtest;
      lower ≤ forecast ≤ upper; tính lại MAE, RMSE, MAPE từ các dòng backtest và so với metrics (sai lệch ≤ 0,01).
   C. Rời bỏ: mọi khách có ≥ 1 đơn Hoàn thành đến reference_date đều có điểm ở mỗi phương pháp; probability trong [0, 1];
      risk_band đúng ngưỡng RISK_HIGH/RISK_MEDIUM; in số khách theo từng mức.
