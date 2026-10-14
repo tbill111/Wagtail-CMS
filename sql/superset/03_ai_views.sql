@@ -35,7 +35,7 @@ CREATE OR REPLACE FUNCTION ai.method_label(method text) RETURNS text LANGUAGE sq
         WHEN 'logistic_regression' THEN 'Logistic Regression'
         WHEN 'random_forest'       THEN 'Random Forest'
         WHEN 'keyword'             THEN 'Từ điển từ khoá'
-        WHEN 'gemini'              THEN 'LLM Gemini'
+        WHEN 'gemini'              THEN 'LLM (Gemini + AI dự phòng)'
         ELSE method END
 $$;
 

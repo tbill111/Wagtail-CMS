@@ -82,8 +82,9 @@ class RunMethodTests(TestCase):
 
 
 class RunAiPipelineCommandTests(TestCase):
-    def test_runs_available_modules_and_removes_demo_batch(self):
+    def test_runs_available_modules_and_removes_only_their_demo_results(self):
         ModelRun.objects.create(batch="demo", module="forecast", method="x", started_at=datetime.now(VN))
+        ModelRun.objects.create(batch="demo", module="churn", method="x", started_at=datetime.now(VN))
 
         def fake_run(batch):
             run = run_method(batch, "forecast", "seasonal_naive",
@@ -94,7 +95,7 @@ class RunAiPipelineCommandTests(TestCase):
         out = StringIO()
         with mock.patch.object(pipeline, "load", side_effect=lambda name: fake_run if name == "forecast" else None):
             call_command("run_ai_pipeline", stdout=out)
-        self.assertFalse(ModelRun.objects.filter(batch="demo").exists())
+        self.assertEqual(list(ModelRun.objects.filter(batch="demo").values_list("module", flat=True)), ["churn"])
         self.assertTrue(ModelRun.objects.filter(module="forecast", is_selected=True).exists())
         self.assertIn("Bỏ qua 'churn'", out.getvalue())
 

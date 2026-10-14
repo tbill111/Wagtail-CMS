@@ -3,7 +3,8 @@
     python manage.py run_ai_pipeline                     # mọi module đã có
     python manage.py run_ai_pipeline --only forecast churn
 
-Mỗi lần chạy là một batch mới (YYYYMMDD-HHMMSS). Kết quả giả của seed_ai_demo (batch "demo") bị xoá trước khi ghi.
+Mỗi lần chạy là một batch mới (YYYYMMDD-HHMMSS). Kết quả giả của seed_ai_demo (batch "demo") của ĐÚNG các module
+được chạy bị xoá trước khi ghi; module chưa chạy giữ nguyên dữ liệu giả để dashboard vẫn có số.
 """
 
 from django.core.management.base import BaseCommand, CommandError
@@ -32,9 +33,9 @@ class Command(BaseCommand):
         if not ready:
             raise CommandError("Chưa có module AI nào để chạy.")
 
-        deleted, _ = ModelRun.objects.filter(batch=DEMO_BATCH).delete()
+        deleted, _ = ModelRun.objects.filter(batch=DEMO_BATCH, module__in=ready).delete()
         if deleted:
-            self.stdout.write(f"Đã xoá kết quả giả (batch '{DEMO_BATCH}').")
+            self.stdout.write(f"Đã xoá kết quả giả (batch '{DEMO_BATCH}') của: {', '.join(ready)}.")
 
         batch = timezone.localtime().strftime("%Y%m%d-%H%M%S")
         self.stdout.write(f"Batch {batch}")
