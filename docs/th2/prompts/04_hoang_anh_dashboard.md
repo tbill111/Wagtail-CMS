@@ -68,7 +68,7 @@ số liệu lấy từ batch mô hình mới nhất.
 BƯỚC 4 – GHI TÀI LIỆU (chỉ tạo/sửa các file này):
 - docs/th2/bao_cao/06_dashboard.md: mục đích từng tab, bảng danh sách biểu đồ (tên, dataset, loại, cột, bộ lọc, câu hỏi
   kinh doanh nó trả lời, tạo bằng MCP hay giao diện), kết quả kiểm tra số liệu từng biểu đồ, danh sách ảnh cần chụp.
-- Thêm mục "Phần của Hoàng Anh" vào CUỐI docs/th2/bao_cao/05_mcp.md: nguyên văn các câu lệnh MCP và kết quả. Không sửa
+- Điền mục "4.5. Phần của Hoàng Anh" trong docs/th2/bao_cao/05_mcp.md: nguyên văn các câu lệnh MCP và kết quả. Không sửa
   phần của Tùng.
 - Commit bằng tài khoản git của tôi. KHÔNG push.
 
