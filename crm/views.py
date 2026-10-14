@@ -71,7 +71,7 @@ def clean_text(value, *, field_label, required=True, max_length=MAX_MESSAGE_LENG
 @require_GET
 @staff_required
 def dashboard(request):
-    now = timezone.localtime()
+    now = analytics.data_as_of()
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     revenue = OrderItem.objects.filter(order__status="completed").aggregate(
         total=Sum(
@@ -84,10 +84,12 @@ def dashboard(request):
     high_priority_customers = Customer.objects.filter(ai_priority="high").order_by("-ai_analyzed_at")[:5]
     low_stock = analytics.low_stock_products()
     context = {
+        "as_of": now,
+        "is_historical": now.date() < timezone.localdate(),
         "high_priority_customers": high_priority_customers,
         "low_stock_products": low_stock,
         "charts": {
-            "revenue": analytics.monthly_revenue(),
+            "revenue": analytics.monthly_revenue(as_of=now),
             "status": analytics.customers_by_status(),
             "customers": analytics.top_customers(),
             "products": analytics.top_products(),
@@ -96,10 +98,11 @@ def dashboard(request):
             "products": Product.objects.filter(is_active=True).count(),
             "low_stock": len(low_stock),
             "total_customers": Customer.objects.count(),
-            "new_customers": Customer.objects.filter(created_at__gte=month_start).count(),
+            "month_label": f"Tháng {now.month}/{now.year}",
+            "new_customers": Customer.objects.filter(created_at__gte=month_start, created_at__lte=now).count(),
             "revenue": revenue or 0,
             "recent_interactions": InteractionLog.objects.filter(
-                created_at__gte=now - timedelta(days=7)
+                created_at__gt=now - timedelta(days=7), created_at__lte=now
             ).count(),
         },
         "latest_interactions": InteractionLog.objects.select_related("customer", "staff")[:5],
@@ -132,6 +135,8 @@ def customer_list(request):
     page_obj = Paginator(customers, 10).get_page(request.GET.get("page"))
     context = {
         "page_obj": page_obj,
+        # Chỉ hiện vài số quanh trang hiện tại (1 … 105 106 107 … 200), tránh tràn khi nhiều trang
+        "page_range": page_obj.paginator.get_elided_page_range(page_obj.number, on_each_side=1, on_ends=1),
         "customers": page_obj.object_list,
         "query": query,
         "status": status,

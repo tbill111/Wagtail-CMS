@@ -1,9 +1,11 @@
 import json
+from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from crm import analytics
 from crm.models import InsufficientStockError, Order, OrderItem, Product
@@ -127,6 +129,16 @@ class AnalyticsTests(TestCase):
         self.assertEqual(len(months), 12)
         self.assertEqual(months[-1]["value"], 200000)
         self.assertEqual(sum(m["value"] for m in months), 200000)
+
+    def test_data_as_of_follows_old_data_but_not_recent_data(self):
+        self.assertEqual(analytics.data_as_of().date(), timezone.localdate())  # CSDL trống -> hôm nay
+        order = make_stock_order(make_customer(), Order.Status.COMPLETED, [(make_product(stock=5), 2)])
+        self.assertEqual(analytics.data_as_of().date(), timezone.localdate())  # dữ liệu mới -> vẫn hôm nay
+        old = timezone.localtime() - timedelta(days=400)
+        Order.objects.filter(pk=order.pk).update(created_at=old)
+        self.assertEqual(analytics.data_as_of(), old)  # chỉ có dữ liệu cũ -> neo theo dữ liệu mới nhất
+        months = analytics.monthly_revenue(as_of=old)
+        self.assertEqual(months[-1], {"label": f"T{old.month}/{old.year}", "value": 200000})
 
 
 class DashboardAndAdminTests(TestCase):

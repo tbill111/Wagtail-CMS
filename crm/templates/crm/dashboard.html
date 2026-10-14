@@ -18,30 +18,25 @@
     <a href="{% url 'crm:customer_list' %}" class="btn btn-primary">Xem danh sách khách hàng</a>
 </div>
 
+{% if is_historical %}
+<div class="sc-note mb-3" role="note">
+    <span aria-hidden="true">🗓️</span>
+    Dữ liệu mới nhất đến <strong>{{ as_of|date:"d/m/Y" }}</strong> – các số "trong tháng", "7 ngày qua" và "12 tháng gần nhất" tính đến ngày này.
+</div>
+{% endif %}
+
 <div class="row g-3 mb-4">
     <div class="col-6 col-lg-3">
-        <div class="sc-card sc-stat h-100">
-            <div class="sc-stat-label">Tổng khách hàng</div>
-            <div class="sc-stat-value">{{ stats.total_customers }}</div>
-        </div>
+        {% include "crm/_stat_card.html" with icon="👥" label="Tổng khách hàng" value=stats.total_customers|num %}
     </div>
     <div class="col-6 col-lg-3">
-        <div class="sc-card sc-stat h-100">
-            <div class="sc-stat-label">Khách mới trong tháng</div>
-            <div class="sc-stat-value">{{ stats.new_customers }}</div>
-        </div>
+        {% include "crm/_stat_card.html" with icon="🆕" label="Khách mới trong tháng" value=stats.new_customers|num sub=stats.month_label tone="success" %}
     </div>
     <div class="col-6 col-lg-3">
-        <div class="sc-card sc-stat h-100">
-            <div class="sc-stat-label">Doanh thu đơn hoàn thành</div>
-            <div class="sc-stat-value">{{ stats.revenue|vnd }}</div>
-        </div>
+        {% include "crm/_stat_card.html" with icon="💰" label="Doanh thu đơn hoàn thành" value=stats.revenue|vnd_short sub=stats.revenue|vnd title=stats.revenue|vnd tone="warning" %}
     </div>
     <div class="col-6 col-lg-3">
-        <div class="sc-card sc-stat h-100">
-            <div class="sc-stat-label">Tương tác 7 ngày qua</div>
-            <div class="sc-stat-value">{{ stats.recent_interactions }}</div>
-        </div>
+        {% include "crm/_stat_card.html" with icon="💬" label="Tương tác 7 ngày qua" value=stats.recent_interactions|num tone="ai" %}
     </div>
 </div>
 
@@ -147,21 +142,29 @@
         <table class="table align-middle mb-0">
             <thead>
             <tr>
-                <th>Thời gian</th>
+                <th class="d-none d-sm-table-cell">Thời gian</th>
                 <th>Khách hàng</th>
-                <th>Kênh</th>
-                <th>Tin nhắn</th>
-                <th>Nguồn phản hồi</th>
+                <th class="d-none d-md-table-cell">Kênh</th>
+                <th class="d-none d-md-table-cell">Tin nhắn</th>
+                <th class="d-none d-sm-table-cell">Nguồn phản hồi</th>
             </tr>
             </thead>
             <tbody>
             {% for item in latest_interactions %}
             <tr>
-                <td class="text-nowrap small">{{ item.created_at|date:"d/m/Y H:i" }}</td>
-                <td><a href="{% url 'crm:customer_detail' item.customer.pk %}">{{ item.customer.name }}</a></td>
-                <td>{{ item.get_channel_display }}</td>
-                <td class="small text-muted">{{ item.customer_message|truncatechars:80 }}</td>
-                <td>
+                <td class="d-none d-sm-table-cell text-nowrap small">{{ item.created_at|date:"d/m/Y H:i" }}</td>
+                <td class="sc-cell-main">
+                    <a href="{% url 'crm:customer_detail' item.customer.pk %}" class="fw-semibold">{{ item.customer.name }}</a>
+                    {# Màn hình nhỏ: gộp thời gian, kênh, tin nhắn vào cùng ô để bảng không bị bóp cột #}
+                    <div class="small text-muted d-md-none">
+                        <span class="d-sm-none">{{ item.created_at|date:"d/m/Y H:i" }} · </span>{{ item.get_channel_display }}
+                        {% if item.is_ai_generated %}<span class="ai-badge ai-badge-sm d-sm-none">✨ AI</span>{% endif %}
+                    </div>
+                    <div class="small text-muted d-md-none sc-clamp-2">{{ item.customer_message }}</div>
+                </td>
+                <td class="d-none d-md-table-cell">{{ item.get_channel_display }}</td>
+                <td class="d-none d-md-table-cell small text-muted">{{ item.customer_message|truncatechars:80 }}</td>
+                <td class="d-none d-sm-table-cell">
                     {% if item.is_ai_generated %}
                     <span class="ai-badge">✨ AI hỗ trợ</span>
                     {% else %}

@@ -501,7 +501,7 @@ Trả về đúng một JSON object."""
         from crm.models import Customer, Order, OrderItem
 
         money = DecimalField(max_digits=18, decimal_places=0)
-        now = timezone.localtime()
+        now = analytics.data_as_of()
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
         def count_by(queryset, field, choices):
@@ -527,7 +527,8 @@ Trả về đúng một JSON object."""
 
         return {
             "total_customers": Customer.objects.count(),
-            "new_customers_month": Customer.objects.filter(created_at__gte=month_start).count(),
+            "as_of": now.date().isoformat(),
+            "new_customers_month": Customer.objects.filter(created_at__gte=month_start, created_at__lte=now).count(),
             "customers_by_status": count_by(Customer.objects.all(), "status", Customer.Status.choices),
             "revenue": int(revenue or 0),
             "orders_by_status": count_by(Order.objects.all(), "status", Order.Status.choices),

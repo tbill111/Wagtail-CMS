@@ -39,7 +39,11 @@ a { text-decoration: none; }
 .sc-navbar { background: var(--sc-primary); box-shadow: 0 2px 8px rgba(30, 58, 138, .25); }
 .sc-brand { font-weight: 700; letter-spacing: .2px; }
 .sc-brand-spark { color: #c4b5fd; }
-.sc-navbar .nav-link.active { font-weight: 600; }
+.sc-navbar .nav-link { color: rgba(255, 255, 255, .78); border-radius: 8px; padding-inline: .75rem !important; }
+.sc-navbar .nav-link:hover { color: #fff; background: rgba(255, 255, 255, .08); }
+.sc-navbar .nav-link.active { font-weight: 600; color: #fff; background: rgba(255, 255, 255, .14); }
+h1.h3 { font-weight: 700; letter-spacing: -.01em; }
+.sc-card h2.h5, .sc-card h2.h6 { font-weight: 600; }
 .sc-footer {
     flex-shrink: 0;
     padding: 1rem 0;
@@ -77,8 +81,27 @@ a { text-decoration: none; }
     box-shadow: var(--sc-shadow);
     padding: 1.25rem;
 }
-.sc-stat-label { font-size: .85rem; color: var(--sc-muted); }
-.sc-stat-value { font-size: 1.6rem; font-weight: 700; color: var(--sc-primary); margin-top: .25rem; word-break: break-word; }
+.sc-card { border: 1px solid rgba(15, 23, 42, .04); }
+.sc-stat { --sc-tone: var(--sc-primary); --sc-tone-soft: #eef2ff; position: relative; overflow: hidden; transition: transform .15s ease, box-shadow .15s ease; }
+.sc-stat::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--sc-tone); }
+.sc-stat:hover { transform: translateY(-2px); box-shadow: 0 2px 6px rgba(15, 23, 42, .08), 0 10px 24px rgba(15, 23, 42, .08); }
+.sc-stat-success { --sc-tone: #059669; --sc-tone-soft: #ecfdf5; }
+.sc-stat-warning { --sc-tone: #d97706; --sc-tone-soft: #fffbeb; }
+.sc-stat-ai { --sc-tone: var(--sc-ai); --sc-tone-soft: var(--sc-ai-soft); }
+.sc-stat-head { display: flex; align-items: center; gap: .6rem; }
+.sc-stat-icon {
+    flex: none; display: inline-grid; place-items: center;
+    width: 2.25rem; height: 2.25rem; border-radius: 10px;
+    background: var(--sc-tone-soft); font-size: 1.1rem;
+}
+.sc-stat-label { font-size: .85rem; color: var(--sc-muted); line-height: 1.25; }
+.sc-stat-value { font-size: 1.75rem; font-weight: 700; color: var(--sc-tone); margin-top: .6rem; white-space: nowrap; letter-spacing: -.01em; }
+.sc-stat-sub { font-size: .78rem; color: var(--sc-muted); overflow-wrap: anywhere; }
+.sc-note {
+    display: flex; gap: .5rem; align-items: flex-start;
+    padding: .65rem .9rem; font-size: .9rem; color: #1e3a8a;
+    background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px;
+}
 .sc-info dt { font-weight: 500; color: var(--sc-muted); }
 .sc-info dd { margin-bottom: .5rem; word-break: break-word; }
 .sc-empty {
@@ -169,8 +192,16 @@ a { text-decoration: none; }
 @keyframes sc-fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @keyframes sc-highlight { from { background: var(--sc-ai-soft); } to { background: transparent; } }
 
+/* ---------- Bảng & danh sách co giãn theo màn hình ---------- */
+.sc-cell-main { min-width: 0; }
+.sc-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.sc-order-items summary { cursor: pointer; width: fit-content; }
+.pagination .page-link { min-width: 2.1rem; text-align: center; }
+
 @media (max-width: 575.98px) {
     .sc-card { padding: 1rem; }
+    .table > :not(caption) > * > * { padding: .6rem .4rem; }
+    .pagination .page-link { min-width: 1.85rem; padding: .25rem .4rem; }
     .sc-stat-value { font-size: 1.25rem; }
     .sc-hero { padding: 2rem 1rem; }
 }
@@ -182,6 +213,7 @@ a { text-decoration: none; }
 
 /* ---------- Dashboard Superset nhúng (trang Phân tích) ---------- */
 .sc-superset-card { padding: .5rem; }
+.sc-superset { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .sc-superset iframe {
     display: block;
     width: 100%;
@@ -189,4 +221,8 @@ a { text-decoration: none; }
     min-height: 640px;
     border: 0;
     border-radius: calc(var(--sc-radius) - 4px);
+}
+.sc-tabs .nav-link { white-space: nowrap; }
+@media (max-width: 991.98px) {
+    .sc-superset iframe { min-width: 992px; height: calc(100vh - 140px); min-height: 560px; }
 }

@@ -39,6 +39,27 @@ def vnd(amount):
 
 
 @register.filter
+def num(value):
+    """Số nguyên có dấu chấm ngăn cách hàng nghìn: 2000 -> 2.000"""
+    try:
+        return f"{int(value):,}".replace(",", ".")
+    except (TypeError, ValueError):
+        return value
+
+
+@register.filter
+def vnd_short(amount):
+    """Tiền rút gọn cho ô số liệu hẹp: 186513155070 -> 186,5 tỷ ₫"""
+    value = float(amount or 0)
+    for unit, size in (("tỷ", 1e9), ("tr", 1e6)):
+        if abs(value) >= size:
+            whole, _, decimal = f"{value / size:,.1f}".partition(".")
+            number = whole.replace(",", ".") + ("" if decimal == "0" else "," + decimal)
+            return f"{number} {unit} ₫"
+    return format_vnd(amount)
+
+
+@register.filter
 def status_badge(status):
     return STATUS_BADGES.get(status, "text-bg-secondary")
 

@@ -1,0 +1,11 @@
+{% comment %}
+Thẻ số liệu dùng chung. Tham số: icon, label, value, sub (dòng phụ, tuỳ chọn), tone ("" | "ai" | "success" | "warning"), title.
+{% endcomment %}
+<div class="sc-card sc-stat h-100 {% if tone %}sc-stat-{{ tone }}{% endif %}">
+    <div class="sc-stat-head">
+        <span class="sc-stat-icon" aria-hidden="true">{{ icon }}</span>
+        <span class="sc-stat-label">{{ label }}</span>
+    </div>
+    <div class="sc-stat-value" {% if title %}title="{{ title }}"{% endif %}>{{ value }}</div>
+    {% if sub %}<div class="sc-stat-sub">{{ sub }}</div>{% endif %}
+</div>

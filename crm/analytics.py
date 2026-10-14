@@ -2,20 +2,36 @@
 
 from datetime import date
 
-from django.db.models import Count, DecimalField, ExpressionWrapper, F, Q, Sum
+from django.db.models import Count, DecimalField, ExpressionWrapper, F, Max, Q, Sum
 from django.db.models.functions import TruncMonth
 from django.utils import timezone
 
-from .models import Customer, Order, OrderItem, Product
+from .models import Customer, InteractionLog, Order, OrderItem, Product
 
 MONEY = DecimalField(max_digits=18, decimal_places=0)
 LINE_TOTAL = ExpressionWrapper(F("quantity") * F("unit_price"), output_field=MONEY)
 COMPLETED_ITEMS = Q(order__status=Order.Status.COMPLETED)
 
 
-def monthly_revenue(months=12):
-    """Doanh thu đơn Hoàn thành theo tháng, đủ ``months`` tháng gần nhất (tháng không có đơn = 0)."""
-    today = timezone.localdate()
+def data_as_of():
+    """Mốc tính "tháng này", "7 ngày qua", "12 tháng gần nhất".
+
+    Bình thường là hiện tại. Nếu dữ liệu mới nhất (đơn hàng, tương tác) đã cũ hơn đầu tháng này – ví dụ CSDL chứa bộ dữ
+    liệu lịch sử – thì lấy thời điểm dữ liệu mới nhất, để các ô số liệu không toàn 0 và biểu đồ không trống.
+    """
+    now = timezone.localtime()
+    latest = [
+        Order.objects.aggregate(m=Max("created_at"))["m"],
+        InteractionLog.objects.aggregate(m=Max("created_at"))["m"],
+    ]
+    latest = max((value for value in latest if value), default=None)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    return timezone.localtime(latest) if latest and latest < month_start else now
+
+
+def monthly_revenue(months=12, as_of=None):
+    """Doanh thu đơn Hoàn thành theo tháng, đủ ``months`` tháng tính đến ``as_of`` (tháng không có đơn = 0)."""
+    today = (as_of or timezone.localtime()).date()
     keys = []
     year, month = today.year, today.month
     for _ in range(months):

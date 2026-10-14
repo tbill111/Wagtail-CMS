@@ -14,28 +14,16 @@
 
     <div class="row g-3 mb-4">
         <div class="col-6 col-lg-3">
-            <div class="sc-card sc-stat h-100">
-                <div class="sc-stat-label">Tổng khách hàng</div>
-                <div class="sc-stat-value">{{ stats.total_customers }}</div>
-            </div>
+            {% include "crm/_stat_card.html" with icon="👥" label="Tổng khách hàng" value=stats.total_customers|num %}
         </div>
         <div class="col-6 col-lg-3">
-            <div class="sc-card sc-stat h-100">
-                <div class="sc-stat-label">Khách mới trong tháng</div>
-                <div class="sc-stat-value">{{ stats.new_customers_month }}</div>
-            </div>
+            {% include "crm/_stat_card.html" with icon="🆕" label="Khách mới trong tháng" value=stats.new_customers_month|num tone="success" %}
         </div>
         <div class="col-6 col-lg-3">
-            <div class="sc-card sc-stat h-100">
-                <div class="sc-stat-label">Doanh thu đơn hoàn thành</div>
-                <div class="sc-stat-value">{{ stats.revenue|vnd }}</div>
-            </div>
+            {% include "crm/_stat_card.html" with icon="💰" label="Doanh thu đơn hoàn thành" value=stats.revenue|vnd_short sub=stats.revenue|vnd title=stats.revenue|vnd tone="warning" %}
         </div>
         <div class="col-6 col-lg-3">
-            <div class="sc-card sc-stat h-100">
-                <div class="sc-stat-label">Khách đã phân tích AI</div>
-                <div class="sc-stat-value text-ai">{{ stats.analyzed_count }}</div>
-            </div>
+            {% include "crm/_stat_card.html" with icon="✨" label="Khách đã phân tích AI" value=stats.analyzed_count|num tone="ai" %}
         </div>
     </div>
 
