@@ -65,7 +65,16 @@
             border: { display: false },
             ticks: { callback: cfg.tick, precision: cfg.integer ? 0 : undefined, padding: 6 },
         };
-        const categoryAxis = { grid: { display: false }, border: { color: GRID }, ticks: { padding: 4 } };
+        // Tên dài (sản phẩm, khách) bị Chart.js cắt mất đầu trên màn hình hẹp -> rút gọn có "…", tên đủ ở tooltip/bảng
+        const maxLabel = () => (window.innerWidth < 576 ? 14 : 24);
+        const shorten = (label) => (label.length > maxLabel() ? label.slice(0, maxLabel() - 1).trimEnd() + "…" : label);
+        const categoryAxis = {
+            grid: { display: false },
+            border: { color: GRID },
+            ticks: cfg.horizontal
+                ? { padding: 4, callback(value) { return shorten(String(this.getLabelForValue(value))); } }
+                : { padding: 4, autoSkip: true, maxRotation: 45 },
+        };
 
         new Chart(wrapper.querySelector("canvas"), {
             type: "bar",
@@ -89,7 +98,7 @@
                     legend: { display: false },
                     tooltip: {
                         displayColors: false,
-                        callbacks: { label: (ctx) => cfg.format(ctx.parsed[cfg.horizontal ? "x" : "y"], rows[ctx.dataIndex]) },
+                        callbacks: { title: (items) => rows[items[0].dataIndex].label, label: (ctx) => cfg.format(ctx.parsed[cfg.horizontal ? "x" : "y"], rows[ctx.dataIndex]) },
                     },
                 },
                 scales: cfg.horizontal ? { x: valueAxis, y: categoryAxis } : { x: categoryAxis, y: valueAxis },

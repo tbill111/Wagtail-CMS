@@ -45,11 +45,17 @@
                         <span class="badge {{ order.status|order_badge }}">{{ order.get_status_display }}</span>
                     </div>
                     <div class="small text-muted">{{ order.created_at|date:"d/m/Y" }} · {{ order.total_amount|vnd }}</div>
-                    <ul class="small mb-0 ps-3 mt-1">
-                        {% for item in order.items.all %}
-                        <li>{{ item.product_name }} × {{ item.quantity }} – {{ item.subtotal|vnd }}</li>
-                        {% endfor %}
-                    </ul>
+                    {% with items=order.items.all %}
+                    {# Đơn nhiều dòng hàng: thu gọn, bấm để xem đủ #}
+                    <details class="sc-order-items small mt-1" {% if items|length <= 3 %}open{% endif %}>
+                        <summary class="text-muted">{{ items|length }} sản phẩm</summary>
+                        <ul class="mb-0 ps-3 mt-1">
+                            {% for item in items %}
+                            <li>{{ item.product_name }} × {{ item.quantity }} – <span class="text-nowrap">{{ item.subtotal|vnd }}</span></li>
+                            {% endfor %}
+                        </ul>
+                    </details>
+                    {% endwith %}
                 </div>
                 {% endfor %}
             </div>
