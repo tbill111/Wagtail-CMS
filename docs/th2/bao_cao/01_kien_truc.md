@@ -107,4 +107,30 @@ Mỗi view chỉ lấy **batch thành công mới nhất** của từng module, 
 
 ## 1.5. Bảo mật
 
-*(Hoàn thiện ở giai đoạn D.)*
+| Tài khoản | Dùng bởi | Quyền | Không làm được |
+|---|---|---|---|
+| `smartcrm` (PostgreSQL) | Wagtail, lệnh `import_th2_data`, `run_ai_pipeline` | Chủ CSDL `smartcrm_th2` | – (hạn chế còn lại, xem dưới) |
+| `superset_ro` (PostgreSQL) | Superset đọc dữ liệu | `SELECT` trên schema `analytics`, `ai`; phiên luôn read-only; truy vấn tối đa 30 giây; tối đa 10 kết nối | Đọc bảng gốc `crm_*`, `insights_*`, `auth_user`; ghi bất kỳ dữ liệu nào |
+| `mcp_agent` (Superset) | Claude qua Superset MCP | Vai trò `Gamma` + `sql_lab` + `TH2_MCP` (chỉ kết nối "SmartCRM TH2 (chỉ đọc)") | Truy cập CSDL TH1; chạy lệnh ghi (DML bị tắt); tạo kết nối CSDL; quản lý người dùng |
+| `admin` (Superset) | Script `bootstrap_th2.py`, máy chủ Wagtail xin guest token | Quản trị | Không đưa cho trình duyệt hay agent |
+| Guest token | Trình duyệt nhân viên xem dashboard nhúng | Chỉ xem đúng dashboard được cấp, hết hạn sau 5 phút | Mở SQL Lab, dataset, dashboard khác |
+
+Các biện pháp khác:
+- Mọi mật khẩu, khoá API nằm trong `.env` (không commit); mật khẩu `mcp_agent` nằm trong `tools/superset-mcp/.env` ngoài repo.
+- View `analytics`, `ai` bỏ email, số điện thoại, nội dung tin nhắn; dashboard chỉ thấy tên hiển thị đã ẩn danh.
+- Dữ liệu thật đều là bộ công khai đã ẩn danh; thư mục `data/` không commit.
+- Cổng PostgreSQL và Superset chỉ mở trên `127.0.0.1`; Superset chỉ cho SmartCRM (`127.0.0.1:8000`, `localhost:8000`) đặt
+  dashboard trong iframe.
+- Lệnh `import_th2_data` từ chối chạy trên CSDL không có đuôi `_th2`, tránh ghi đè dữ liệu TH1.
+
+Hạn chế còn lại (môi trường học tập): Wagtail dùng tài khoản chủ CSDL; kết nối nội bộ Docker không bật SSL; công cụ đăng nhập
+của MCP cộng đồng trả access token cho agent. Triển khai thật nên tách tài khoản ứng dụng, bật `sslmode=require` và dùng MCP
+chính thức của Superset 6.x với JWT.
+
+## 1.6. SmartCRM hiển thị kết quả AI
+
+Trang **Phân tích** (`/crm/analytics/`) có 2 tab: **AI Insights** (dashboard `smartcrm-ai-insights` của TH2) và **Phân tích
+kinh doanh** (dashboard của TH1). Dashboard được nhúng bằng Superset Embedded SDK với guest token do máy chủ Wagtail xin
+cho từng nhân viên đã đăng nhập; danh sách tab đặt trong `SUPERSET_DASHBOARDS` (settings).
+
+![Trang Phân tích – tab AI Insights](img/smartcrm_ai_insights_nhung.png)

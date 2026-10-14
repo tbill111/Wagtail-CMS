@@ -92,8 +92,10 @@ docker compose exec db psql -U smartcrm -d smartcrm_th2 -v ON_ERROR_STOP=1 -f /s
 ```powershell
 python superset/bootstrap_th2.py
 ```
-**Đúng khi:** in ra kết nối "SmartCRM TH2 (chỉ đọc)" và 4 dataset `ai.model_run`, `ai.revenue_forecast`,
-`ai.churn_score`, `ai.interaction_sentiment`.
+**Đúng khi:** in ra kết nối "SmartCRM TH2 (chỉ đọc)", 4 dataset `ai.model_run`, `ai.revenue_forecast`,
+`ai.churn_score`, `ai.interaction_sentiment`, và dashboard `smartcrm-ai-insights` đã bật nhúng.
+Lần đầu script tạo **khung** dashboard (tab Tổng quan, gồm các biểu đồ tên bắt đầu bằng `[Tổng quan]` nếu đã có);
+chạy lại không đụng vào bố cục dashboard.
 
 ## 8. Chạy mô hình AI (khi các module đã gộp)
 
@@ -109,7 +111,8 @@ View `ai.*` tự lấy batch mới nhất, không cần chạy lại file 03.
 ```powershell
 python manage.py runserver
 ```
-Mở http://127.0.0.1:8000/admin/ (menu **Kết quả AI** xem các lần chạy mô hình) và http://127.0.0.1:8000/crm/.
+Mở http://127.0.0.1:8000/admin/ (menu **Kết quả AI** xem các lần chạy mô hình), http://127.0.0.1:8000/crm/ và
+http://127.0.0.1:8000/crm/analytics/ (tab **AI Insights** là dashboard TH2 nhúng trong SmartCRM).
 
 ## Lỗi hay gặp
 

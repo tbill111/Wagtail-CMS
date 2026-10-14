@@ -59,8 +59,10 @@ Nhãn hiển thị tiếng Việt, tiền định dạng VNĐ, tỉ lệ định
 BƯỚC 2B – CHỈ KHI MCP KHÔNG DÙNG ĐƯỢC: hướng dẫn tôi tạo từng biểu đồ trên giao diện Superset (Charts → + Chart →
 chọn dataset → loại biểu đồ → kéo cột nào vào đâu → Save). Mỗi lần một biểu đồ, chờ tôi báo xong rồi mới sang cái tiếp.
 
-BƯỚC 3 – GHÉP DASHBOARD: tạo dashboard tên "SmartCRM – AI Insights", slug smartcrm-ai-insights, 4 tab đúng thứ tự
-Tổng quan · Dự báo · Rời bỏ · Cảm xúc. Nếu MCP không sắp được bố cục/tab thì hướng dẫn tôi kéo thả trên giao diện
+BƯỚC 3 – GHÉP DASHBOARD: dashboard "SmartCRM – AI Insights" (slug smartcrm-ai-insights) ĐÃ CÓ SẴN khung do
+superset/bootstrap_th2.py tạo (tab Tổng quan). KHÔNG tạo dashboard mới: thêm 3 tab Dự báo · Rời bỏ · Cảm xúc vào đúng
+dashboard này, giữ thứ tự Tổng quan · Dự báo · Rời bỏ · Cảm xúc. Nếu 4 biểu đồ Tổng quan chưa có trên máy tôi thì tạo
+chúng trước rồi chạy lại python superset/bootstrap_th2.py để có khung. Nếu MCP không sắp được bố cục/tab thì hướng dẫn tôi kéo thả trên giao diện
 (Edit dashboard → Tabs → kéo biểu đồ vào). Thêm bộ lọc: Nhóm khách (customer_type), Mức rủi ro (risk_label), Kênh
 (channel), áp dụng đúng biểu đồ có cột đó. Thêm 1 khối Markdown đầu tab Tổng quan giải thích nguồn dữ liệu và rằng
 số liệu lấy từ batch mô hình mới nhất.
