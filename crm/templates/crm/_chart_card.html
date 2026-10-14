@@ -1,0 +1,12 @@
+<div class="sc-card h-100 sc-chart-card">
+    <h2 class="h6 mb-0">{{ title }}</h2>
+    <p class="small text-muted mb-3">{{ subtitle }}</p>
+    <div class="sc-chart" data-chart="{{ chart_id }}">
+        <canvas role="img" aria-label="Biểu đồ: {{ title }}"></canvas>
+    </div>
+    <div class="sc-empty d-none" data-chart-empty="{{ chart_id }}">Chưa có dữ liệu.</div>
+    <details class="sc-chart-table small mt-2">
+        <summary class="text-muted">Xem bảng số liệu</summary>
+        <table class="table table-sm mb-0 mt-2" data-chart-table="{{ chart_id }}"></table>
+    </details>
+</div>

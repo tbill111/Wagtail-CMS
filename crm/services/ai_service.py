@@ -495,6 +495,7 @@ Trả về đúng một JSON object."""
         """Tổng hợp số liệu từ CSDL cho báo cáo (không gọi AI). Mọi giá trị đều JSON được."""
         from django.db.models import Count, DecimalField, ExpressionWrapper, F, Q, Sum
 
+        from crm import analytics
         from crm.models import Customer, Order, OrderItem
 
         money = DecimalField(max_digits=18, decimal_places=0)
@@ -531,6 +532,11 @@ Trả về đúng một JSON object."""
             "top_customers": [{"name": c["name"], "spent": int(c["spent"])} for c in top_customers],
             "sentiment_counts": count_by(Customer.objects.all(), "ai_sentiment", Customer.Sentiment.choices),
             "analyzed_count": Customer.objects.exclude(ai_sentiment="").count(),
+            "top_products": [
+                {"name": p["label"], "sku": p["sku"], "sold": p["value"], "revenue": p["revenue"]}
+                for p in analytics.top_products()
+            ],
+            "low_stock_products": analytics.low_stock_products(),
         }
 
     def generate_report(self):
@@ -561,6 +567,7 @@ YÊU CẦU:
   TÌNH HÌNH CHUNG / RỦI RO CẦN CHÚ Ý / ĐỀ XUẤT HÀNH ĐỘNG.
 - Mỗi phần 2–4 gạch đầu dòng, mỗi dòng bắt đầu bằng "- ".
 - TUYỆT ĐỐI không bịa số liệu ngoài dữ liệu đã cung cấp.
+- Nếu low_stock_products có sản phẩm sắp hết hàng: nêu ở RỦI RO và đề xuất nhập thêm hàng.
 - Tổng khoảng 150–300 từ.
 
 Chỉ trả về nội dung nhận định."""
@@ -578,6 +585,8 @@ Chỉ trả về nội dung nhận định."""
         analyzed = stats["analyzed_count"]
         top = stats["top_customers"]
         top_text = ", ".join(f'{c["name"]} ({format_vnd(c["spent"])})' for c in top[:3]) or "chưa có"
+        best_sellers = stats.get("top_products", [])
+        low_stock = stats.get("low_stock_products", [])
 
         risks = [f"- Có {churned} khách hàng đã rời bỏ, cần tìm hiểu nguyên nhân."]
         if cancelled:
@@ -586,6 +595,9 @@ Chỉ trả về nội dung nhận định."""
             risks.append(f"- AI ghi nhận {negative}/{analyzed} khách đã phân tích có cảm xúc tiêu cực.")
         else:
             risks.append("- Chưa có khách hàng nào được phân loại bằng AI để đánh giá cảm xúc.")
+        if low_stock:
+            names = ", ".join(f'{p["name"]} (còn {p["stock"]})' for p in low_stock[:3])
+            risks.append(f"- Có {len(low_stock)} sản phẩm sắp hết hàng: {names}.")
 
         return "\n".join([
             "TÌNH HÌNH CHUNG",
@@ -593,6 +605,10 @@ Chỉ trả về nội dung nhận định."""
             f"trong đó {stats['new_customers_month']} khách mới trong tháng.",
             f"- Doanh thu đơn hoàn thành đạt {format_vnd(stats['revenue'])}.",
             f"- Top khách hàng chi tiêu cao: {top_text}.",
+            *(
+                [f'- Sản phẩm bán chạy nhất: {best_sellers[0]["name"]} ({best_sellers[0]["sold"]} đã bán).']
+                if best_sellers else []
+            ),
             "",
             "RỦI RO CẦN CHÚ Ý",
             *risks,
@@ -601,6 +617,7 @@ Chỉ trả về nội dung nhận định."""
             f"- Theo dõi {pending} đơn hàng mới/đang xử lý để hoàn thành đúng hạn.",
             f"- Chăm sóc {leads} khách tiềm năng để chuyển đổi thành đơn hàng.",
             "- Liên hệ lại khách hàng đã rời bỏ và duy trì ưu đãi cho nhóm chi tiêu cao.",
+            *(["- Lập kế hoạch nhập thêm các sản phẩm sắp hết hàng trước khi phát sinh đơn mới."] if low_stock else []),
         ])
 
 

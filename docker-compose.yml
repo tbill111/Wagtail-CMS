@@ -1,0 +1,69 @@
+# TH1 – Tích hợp SmartCRM (Wagtail) với Apache Superset.
+# Hướng dẫn đầy đủ: docs/TH1_SUPERSET.md
+#
+#   docker compose up -d db                      # 1. CSDL PostgreSQL cho Wagtail (cổng DB_PORT, mặc định 5435)
+#   docker compose --profile init run --rm superset-init   # 2. Khởi tạo Superset – chạy 1 lần
+#   docker compose up -d superset                # 3. Superset tại http://localhost:SUPERSET_PORT (mặc định 8088)
+#
+# Mọi mật khẩu đọc từ file .env (xem .env.example) – không ghi cứng trong file này.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-smartcrm}
+      POSTGRES_USER: ${DB_USER:-smartcrm}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Đặt DB_PASSWORD trong .env}
+      SUPERSET_META_PASSWORD: ${SUPERSET_META_PASSWORD:?Đặt SUPERSET_META_PASSWORD trong .env}
+      # Dùng khi chạy thủ công sql/superset/02_superset_readonly_user.sql
+      SUPERSET_RO_PASSWORD: ${SUPERSET_RO_PASSWORD:?Đặt SUPERSET_RO_PASSWORD trong .env}
+    ports:
+      # Chỉ mở trên máy mình (127.0.0.1) để Wagtail chạy ngoài Docker kết nối được
+      - "127.0.0.1:${DB_PORT:-5435}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Chỉ chạy khi volume còn trống: tạo CSDL metadata riêng cho Superset
+      - ./docker/postgres:/docker-entrypoint-initdb.d:ro
+      # Script SQL cho TH1 (tạo view phân tích, tài khoản chỉ đọc) – chạy thủ công
+      - ./sql/superset:/sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  superset:
+    build: ./superset
+    image: smartcrm-superset:4.1.2
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment: &superset-env
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY:?Đặt SUPERSET_SECRET_KEY trong .env}
+      SUPERSET_META_PASSWORD: ${SUPERSET_META_PASSWORD}
+      # Nhúng dashboard vào SmartCRM: khoá ký guest token + địa chỉ SmartCRM được phép đặt iframe
+      SUPERSET_GUEST_TOKEN_SECRET: ${SUPERSET_GUEST_TOKEN_SECRET:?Đặt SUPERSET_GUEST_TOKEN_SECRET trong .env}
+      SUPERSET_EMBED_ORIGINS: ${SUPERSET_EMBED_ORIGINS:-http://127.0.0.1:8000,http://localhost:8000}
+    ports:
+      - "127.0.0.1:${SUPERSET_PORT:-8088}:8088"
+
+  # Khởi tạo metadata + tài khoản admin của Superset. Chạy thủ công 1 lần, không nằm trong luồng start app.
+  superset-init:
+    image: smartcrm-superset:4.1.2
+    profiles: ["init"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      <<: *superset-env
+      ADMIN_USER: ${SUPERSET_ADMIN_USER:-admin}
+      ADMIN_PASSWORD: ${SUPERSET_ADMIN_PASSWORD:?Đặt SUPERSET_ADMIN_PASSWORD trong .env}
+    command: >
+      sh -c "superset db upgrade &&
+             superset fab create-admin --username \"$$ADMIN_USER\" --password \"$$ADMIN_PASSWORD\" --firstname Admin --lastname SmartCRM --email admin@smartcrm.local &&
+             superset init"
+
+volumes:
+  pgdata:

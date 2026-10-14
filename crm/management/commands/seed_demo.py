@@ -12,7 +12,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
 
-from crm.models import Customer, InteractionLog, Order, OrderItem
+from crm.models import Customer, InteractionLog, Order, OrderItem, Product
 
 DEMO_DOMAIN = "demo.smartcrm.vn"
 
@@ -30,33 +30,55 @@ CUSTOMERS = [
     ("Ngô Phương Linh", "linh.ngo", "0389012345", "", "churned", "other", 150),
 ]
 
-# email-prefix -> danh sách đơn: (trạng thái, số ngày trước, [(sản phẩm, SL, đơn giá)], ghi chú)
+# (SKU, tên, đơn vị, giá bán, quản lý tồn kho, tồn kho ban đầu, tồn kho tối thiểu)
+PRODUCTS = [
+    ("PM-BH-12", "Gói phần mềm quản lý bán hàng (12 tháng)", "gói", 4800000, False, 0, 0),
+    ("PM-BH-06", "Gói phần mềm quản lý bán hàng (6 tháng)", "gói", 2600000, False, 0, 0),
+    ("CRM-DN-12", "Gói CRM doanh nghiệp (12 tháng)", "gói", 12000000, False, 0, 0),
+    ("DV-TK", "Thêm tài khoản người dùng", "tài khoản", 600000, False, 0, 0),
+    ("DV-DT", "Đào tạo sử dụng tại chỗ", "buổi", 1500000, False, 0, 0),
+    ("DV-HT", "Gia hạn gói hỗ trợ kỹ thuật", "gói", 1200000, False, 0, 0),
+    ("DV-WEB", "Thiết kế website giới thiệu", "dự án", 9500000, False, 0, 0),
+    ("DV-TD", "Tích hợp tổng đài", "gói", 3500000, False, 0, 0),
+    ("TB-MIN", "Máy in hoá đơn nhiệt", "cái", 1350000, True, 6, 3),
+    ("TB-K80", "Giấy in K80 (thùng)", "thùng", 320000, True, 14, 5),
+    ("TB-POS", "Máy bán hàng POS cảm ứng", "bộ", 7900000, True, 4, 2),
+    ("TB-KET", "Két đựng tiền", "cái", 850000, True, 3, 2),
+    ("TB-QR", "Máy quét mã vạch", "cái", 950000, True, 12, 3),
+]
+
+# email-prefix -> danh sách đơn: (trạng thái, số ngày trước, [(SKU, SL)], ghi chú); đơn giá lấy theo sản phẩm
 ORDERS = {
     "an.nguyen": [
-        ("completed", 110, [("Gói phần mềm quản lý bán hàng (12 tháng)", 1, 4800000), ("Đào tạo sử dụng tại chỗ", 1, 1500000)], "Khách thanh toán chuyển khoản"),
-        ("processing", 5, [("Gia hạn gói hỗ trợ kỹ thuật", 1, 1200000)], ""),
+        ("completed", 110, [("PM-BH-12", 1), ("DV-DT", 1)], "Khách thanh toán chuyển khoản"),
+        ("completed", 15, [("TB-K80", 2), ("TB-QR", 1)], ""),
+        ("processing", 5, [("DV-HT", 1)], ""),
     ],
     "binh.tran": [
-        ("completed", 90, [("Máy in hoá đơn nhiệt", 2, 1350000), ("Giấy in K80 (thùng)", 3, 320000)], ""),
-        ("completed", 30, [("Giấy in K80 (thùng)", 5, 320000)], "Giao tại cửa hàng"),
+        ("completed", 150, [("TB-K80", 2)], ""),
+        ("completed", 90, [("TB-MIN", 2), ("TB-K80", 3)], ""),
+        ("completed", 30, [("TB-K80", 5)], "Giao tại cửa hàng"),
     ],
     "cuong.le": [
-        ("new", 2, [("Thiết kế website giới thiệu", 1, 9500000)], "Chờ khách duyệt báo giá"),
+        ("new", 2, [("DV-WEB", 1)], "Chờ khách duyệt báo giá"),
     ],
     "duc.hoang": [
-        ("completed", 180, [("Gói CRM doanh nghiệp (12 tháng)", 1, 12000000)], ""),
-        ("completed", 45, [("Thêm 5 tài khoản người dùng", 5, 600000)], ""),
-        ("cancelled", 20, [("Tích hợp tổng đài", 1, 3500000)], "Khách đổi kế hoạch"),
+        ("completed", 180, [("CRM-DN-12", 1)], ""),
+        ("completed", 130, [("TB-MIN", 1), ("TB-QR", 2)], ""),
+        ("completed", 45, [("DV-TK", 5)], ""),
+        ("cancelled", 20, [("DV-TD", 1)], "Khách đổi kế hoạch"),
     ],
     "ha.vu": [
-        ("completed", 280, [("Gói phần mềm quản lý bán hàng (6 tháng)", 1, 2600000)], ""),
+        ("completed", 280, [("PM-BH-06", 1)], ""),
+        ("completed", 240, [("TB-QR", 1)], ""),
     ],
     "huy.dang": [
-        ("processing", 10, [("Máy bán hàng POS cảm ứng", 1, 7900000), ("Két đựng tiền", 1, 850000)], "Hẹn lắp đặt cuối tuần"),
+        ("processing", 10, [("TB-POS", 1), ("TB-KET", 1)], "Hẹn lắp đặt cuối tuần"),
     ],
     "khang.do": [
-        ("completed", 50, [("Gói CRM doanh nghiệp (12 tháng)", 1, 12000000), ("Đào tạo sử dụng tại chỗ", 2, 1500000)], ""),
-        ("new", 1, [("Thêm 3 tài khoản người dùng", 3, 600000)], ""),
+        ("completed", 50, [("CRM-DN-12", 1), ("DV-DT", 2)], ""),
+        ("completed", 10, [("TB-KET", 1), ("TB-MIN", 1)], ""),
+        ("new", 1, [("DV-TK", 3)], ""),
     ],
 }
 
@@ -122,13 +144,26 @@ class Command(BaseCommand):
         demo_customers = Customer.objects.filter(email__endswith=f"@{DEMO_DOMAIN}")
         if options["reset"]:
             count = demo_customers.count()
-            demo_customers.delete()  # đơn hàng, tương tác bị xoá theo (CASCADE)
+            demo_customers.delete()  # đơn hàng, tương tác bị xoá theo (CASCADE), hàng được hoàn về kho
             self.stdout.write(self.style.WARNING(f"Đã xoá {count} khách hàng mẫu cùng dữ liệu liên quan."))
+
+        products = {}
+        for sku, name, unit, price, track_stock, stock, min_stock in PRODUCTS:
+            values = {
+                "name": name, "unit": unit, "price": Decimal(price),
+                "track_stock": track_stock, "stock": stock, "min_stock": min_stock,
+            }
+            if options["reset"]:
+                products[sku], _ = Product.objects.update_or_create(sku=sku, defaults=values)
+            else:
+                products[sku], _ = Product.objects.get_or_create(sku=sku, defaults=values)
 
         User = get_user_model()
         staff = User.objects.filter(is_staff=True).order_by("id").first()
         now = timezone.now()
         created = {"customers": 0, "orders": 0, "interactions": 0, "analyzed": 0}
+        # Tạo đơn theo thứ tự thời gian để kho được trừ đúng như thực tế
+        pending_orders = []
 
         for name, prefix, phone, company, status, source, days_ago in CUSTOMERS:
             customer, is_new = Customer.objects.get_or_create(
@@ -148,22 +183,7 @@ class Command(BaseCommand):
 
             if not customer.orders.exists():
                 for order_status, order_days, items, note in ORDERS.get(prefix, []):
-                    order_date = now - timedelta(days=order_days)
-                    order = Order.objects.create(
-                        customer=customer,
-                        status=order_status,
-                        note=note,
-                        code=Order.generate_code(timezone.localdate(order_date)),
-                    )
-                    for product_name, quantity, unit_price in items:
-                        OrderItem.objects.create(
-                            order=order,
-                            product_name=product_name,
-                            quantity=quantity,
-                            unit_price=Decimal(unit_price),
-                        )
-                    Order.objects.filter(pk=order.pk).update(created_at=order_date)
-                    created["orders"] += 1
+                    pending_orders.append((order_days, customer, order_status, items, note))
 
             if not customer.interactions.exists():
                 for channel, int_days, message, reply, used_ai in INTERACTIONS.get(prefix, []):
@@ -188,6 +208,19 @@ class Command(BaseCommand):
                 )
                 created["analyzed"] += 1
 
+        for order_days, customer, order_status, items, note in sorted(pending_orders, key=lambda o: -o[0]):
+            order_date = now - timedelta(days=order_days)
+            order = Order(
+                customer=customer,
+                status=order_status,
+                note=note,
+                code=Order.generate_code(timezone.localdate(order_date)),
+                items=[OrderItem(product=products[sku], quantity=quantity) for sku, quantity in items],
+            )
+            order.save()  # lưu đơn + các dòng sản phẩm, trừ kho nếu Hoàn thành
+            Order.objects.filter(pk=order.pk).update(created_at=order_date)
+            created["orders"] += 1
+
         self.stdout.write(
             self.style.SUCCESS(
                 "Hoàn tất dữ liệu mẫu: thêm mới {customers} khách hàng, {orders} đơn hàng, "
@@ -196,5 +229,6 @@ class Command(BaseCommand):
         )
         self.stdout.write(
             f"Tổng hiện có: {Customer.objects.count()} khách hàng, {Order.objects.count()} đơn hàng, "
-            f"{InteractionLog.objects.count()} tương tác."
+            f"{InteractionLog.objects.count()} tương tác, {Product.objects.count()} sản phẩm "
+            f"({Product.low_stock().count()} sản phẩm sắp hết hàng)."
         )

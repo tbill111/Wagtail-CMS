@@ -39,6 +39,7 @@ def env_bool(name, default=False):
 INSTALLED_APPS = [
     "home",
     "crm",
+    "care",
     "wagtail.contrib.forms",
     "wagtail.contrib.redirects",
     "wagtail.embeds",
@@ -98,12 +99,27 @@ WSGI_APPLICATION = "smartcrm.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+# Mặc định SQLite. Đặt DB_ENGINE=postgres trong .env để dùng PostgreSQL
+# (bắt buộc khi kết nối Apache Superset – xem docs/TH1_SUPERSET.md).
+if os.getenv("DB_ENGINE", "sqlite").strip().lower() in ("postgres", "postgresql"):
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.getenv("DB_NAME", "smartcrm"),
+            "USER": os.getenv("DB_USER", "smartcrm"),
+            "PASSWORD": os.getenv("DB_PASSWORD", ""),
+            "HOST": os.getenv("DB_HOST", "127.0.0.1"),
+            "PORT": os.getenv("DB_PORT", "5435"),
+        }
     }
-}
+    INSTALLED_APPS.append("django.contrib.postgres")  # chỉ mục tìm kiếm của Wagtail cần trên PostgreSQL
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
 
 
 # Password validation
@@ -214,6 +230,14 @@ FALLBACK_AI_API_KEY = os.getenv("FALLBACK_AI_API_KEY", "").strip()
 FALLBACK_AI_BASE_URL = os.getenv("FALLBACK_AI_BASE_URL", "").strip()
 FALLBACK_AI_MODEL = os.getenv("FALLBACK_AI_MODEL", "").strip()
 FALLBACK_AI_NAME = os.getenv("FALLBACK_AI_NAME", "").strip() or "AI dự phòng"
+
+# Apache Superset – nhúng dashboard vào trang /crm/analytics/ (xem docs/TH1_SUPERSET.md)
+SUPERSET_URL = (
+    os.getenv("SUPERSET_URL", "").strip() or f"http://127.0.0.1:{os.getenv('SUPERSET_PORT', '8088')}"
+).rstrip("/")
+SUPERSET_ADMIN_USER = os.getenv("SUPERSET_ADMIN_USER", "admin").strip()
+SUPERSET_ADMIN_PASSWORD = os.getenv("SUPERSET_ADMIN_PASSWORD", "")
+SUPERSET_DASHBOARD_SLUG = "smartcrm-th1"
 
 LOGGING = {
     "version": 1,

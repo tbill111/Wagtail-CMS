@@ -8,6 +8,8 @@ SmartCRM là một hệ thống CRM (quản trị quan hệ khách hàng) cơ b�
 2. **Phân loại khách hàng AI**: Phân tích cảm xúc tương tác (Tích cực / Trung lập / Tiêu cực), mức độ ưu tiên (Cao / Trung bình / Thấp), đề xuất trạng thái và tóm tắt hành động tiếp theo.
 3. **Báo cáo nhận định nhanh AI**: Tự động tổng hợp số liệu CSDL và đưa ra nhận định kinh doanh 3 phần: Tình hình chung, Rủi ro cần chú ý, Đề xuất hành động.
 
+> **TH1 (cá nhân) – Tích hợp Apache Superset:** PostgreSQL + Superset trong Docker, tầng view `analytics`, tài khoản chỉ đọc, dashboard và kiểm tra số liệu – xem [docs/TH1_SUPERSET.md](docs/TH1_SUPERSET.md).
+
 ## Mục lục
 1. [Luồng dữ liệu](#1-luồng-dữ-liệu)
 2. [Checklist 01–05 ↔ file](#2-checklist-0105--file)
@@ -47,10 +49,10 @@ flowchart LR
 | # | Yêu cầu | Trạng thái | File / thư mục chính |
 |---|---|---|---|
 | 01 | Cài đặt môi trường Python và khởi tạo dự án Wagtail CMS | ✅ | `requirements.txt`, `manage.py`, `Dockerfile`, `smartcrm/settings/base.py` (vi, Asia/Ho_Chi_Minh, `WAGTAIL_SITE_NAME`, đọc `.env`), `.env.example`, `.gitignore` |
-| 02 | Model tùy chỉnh lưu khách hàng, đơn hàng, báo cáo AI | ✅ | `crm/models.py` (Customer + các trường `ai_*`, Order, OrderItem, InteractionLog, AIReport), `crm/wagtail_hooks.py` (CustomerViewSet, OrderViewSet, InteractionLogViewSet, AIReportViewSet), `crm/migrations/` (0001_initial, 0002_ai_classify_report, 0003_customer_ai_provider) |
+| 02 | Model tùy chỉnh lưu khách hàng, đơn hàng, báo cáo AI | ✅ | `crm/models.py` (Customer + các trường `ai_*`, Product (SKU, tồn kho, tồn tối thiểu), Order (tự trừ/hoàn kho), OrderItem → Product, InteractionLog, AIReport), `crm/wagtail_hooks.py` (CustomerViewSet, OrderViewSet + `crm/forms.py` chặn xuất vượt tồn, ProductViewSet, InteractionLogViewSet, AIReportViewSet), `crm/migrations/` (0001_initial, 0002_ai_classify_report, 0003_customer_ai_provider, 0004_product_stock), `docs/patches/0004_backfill_products.sql` |
 | 03 | Tích hợp API AI – gợi ý email, phân loại KH, báo cáo nhận định | ✅ | `crm/services/ai_service.py` (`GeminiCRMService`, `AIServiceError`, `get_ai_service`, phân loại & báo cáo nhanh, MOCK, fallback provider) |
-| 04 | Giao diện Frontend tương tác với AI | ✅ | `crm/views.py`, `crm/urls.py`, `crm/templates/crm/*.html` (`_ai_classify_card.html`, `report.html`), `crm/static/crm/js/ai.js` (`initSuggestReply`, `initClassifyCard`, `initReportPage`), `crm/static/crm/css/smartcrm.css` |
-| 05 | Kiểm thử luồng & tài liệu triển khai | ✅ | `crm/tests/` (65 unit test PASS), E2E trên trình duyệt (26/26 bước, `docs/TEST_CASES.md` mục 4), `crm/management/commands/seed_demo.py` (hỗ trợ `--analyze`), `README.md` (cài đặt mục 5, demo mục 7, triển khai Docker mục 9), `docs/screenshots/` |
+| 04 | Giao diện Frontend tương tác với AI | ✅ | `crm/views.py`, `crm/analytics.py` (số liệu biểu đồ), `crm/urls.py`, `crm/templates/crm/*.html` (`_ai_classify_card.html`, `report.html`), `crm/static/crm/js/dashboard.js` (Chart.js), `crm/static/crm/js/ai.js` (`initSuggestReply`, `initClassifyCard`, `initReportPage`), `crm/static/crm/css/smartcrm.css` |
+| 05 | Kiểm thử luồng & tài liệu triển khai | ✅ | `crm/tests/` (81 unit test PASS, gồm `test_stock.py` cho sản phẩm – tồn kho – biểu đồ), E2E trên trình duyệt (26/26 bước, `docs/TEST_CASES.md` mục 4), `crm/management/commands/seed_demo.py` (hỗ trợ `--analyze`), `README.md` (cài đặt mục 5, demo mục 7, triển khai Docker mục 9), `docs/screenshots/` |
 
 ## 3. Phân công nhiệm vụ
 
@@ -91,12 +93,12 @@ copy .env.example .env
 # Mở .env, dán GEMINI_API_KEY (xem mục "Lấy API key Gemini" bên dưới). Để trống thì hệ thống chạy chế độ mô phỏng.
 
 # 5. Tạo CSDL
-python manage.py migrate   # đã có CSDL từ bản cũ? chạy lại để áp dụng migration 0002–0003 (Phân loại & Báo cáo AI)
+python manage.py migrate   # đã có CSDL từ bản cũ? chạy lại để áp dụng migration 0002–0004 (Phân loại & Báo cáo AI, Sản phẩm & tồn kho)
 
 # 6. Tạo tài khoản quản trị
 python manage.py createsuperuser
 
-# 7. Nạp dữ liệu mẫu (~10 khách, 12 đơn, 20 tương tác)
+# 7. Nạp dữ liệu mẫu (~10 khách, 17 đơn, 20 tương tác, 13 sản phẩm)
 python manage.py seed_demo --reset --analyze
 
 # 8. Chạy máy chủ
@@ -112,7 +114,7 @@ python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env          # rồi sửa GEMINI_API_KEY trong .env
-python manage.py migrate   # đã có CSDL từ bản cũ? chạy lại để áp dụng migration 0002–0003 (Phân loại & Báo cáo AI)
+python manage.py migrate   # đã có CSDL từ bản cũ? chạy lại để áp dụng migration 0002–0004 (Phân loại & Báo cáo AI, Sản phẩm & tồn kho)
 python manage.py createsuperuser
 python manage.py seed_demo --reset --analyze
 python manage.py runserver
@@ -142,13 +144,21 @@ Các biến trong `.env`:
 Lệnh `seed_demo` chạy lại nhiều lần không bị trùng dữ liệu. Muốn xoá dữ liệu mẫu và tạo lại thì chạy `python manage.py seed_demo --reset`.
 Nếu tạo superuser **trước** khi seed, khách mẫu sẽ được gán cho tài khoản đó làm nhân viên phụ trách.
 
+**Sản phẩm & tồn kho (migration 0004):**
+- Admin → CRM → **Sản phẩm & tồn kho**: quản lý SKU, giá bán, tồn kho, tồn kho tối thiểu. Bỏ chọn *Quản lý tồn kho* với dịch vụ / gói phần mềm.
+- Dòng sản phẩm trong đơn chọn **Sản phẩm**; bỏ trống tên hiển thị / đơn giá thì tự lấy theo sản phẩm.
+- Đơn chuyển sang **Hoàn thành** thì tự trừ kho; đổi sang trạng thái khác, sửa số lượng hoặc xoá đơn thì kho được hoàn/điều chỉnh đúng phần chênh lệch. Không đủ hàng thì Admin báo lỗi và không lưu.
+- Sản phẩm có tồn kho ≤ mức tối thiểu hiện ở khối **Sản phẩm sắp hết hàng** trên trang Tổng quan và được đưa vào Báo cáo AI.
+- CSDL đã có đơn hàng thật từ bản cũ: sau `migrate`, chạy patch SQL để tạo sản phẩm từ tên cũ và gắn vào đơn:
+  `sqlite3 db.sqlite3 < docs/patches/0004_backfill_products.sql` (có câu lệnh VERIFY trước/sau). CSDL demo thì chỉ cần `seed_demo --reset`.
+
 ## 6. Các URL chính
 
 | URL | Mô tả |
 |---|---|
 | <http://127.0.0.1:8000/> | Trang chủ giới thiệu SmartCRM |
 | <http://127.0.0.1:8000/admin/> | Wagtail Admin, menu **CRM** (Khách hàng, Đơn hàng, Lịch sử tương tác) và **Mở SmartCRM** |
-| <http://127.0.0.1:8000/crm/> | Tổng quan: 4 thẻ số liệu + Khách hàng ưu tiên cao (theo AI) + 5 tương tác mới nhất |
+| <http://127.0.0.1:8000/crm/> | Tổng quan: 4 thẻ số liệu + 4 biểu đồ (doanh thu theo tháng, khách theo trạng thái, top khách, top sản phẩm bán chạy) + cảnh báo sắp hết hàng + Khách hàng ưu tiên cao (theo AI) + 5 tương tác mới nhất |
 | <http://127.0.0.1:8000/crm/customers/> | Danh sách khách: tìm theo tên/email/SĐT, lọc trạng thái và ưu tiên AI, 10 khách/trang |
 | `/crm/customers/<id>/` | Chi tiết khách + khối **✨ Gợi ý phản hồi AI** + khối **✨ Phân loại AI** + timeline |
 | `POST /crm/api/customers/<id>/suggest-reply/` | Vào `{message, tone}`, ra `{ok, reply, mock, provider}` (`provider` = tên AI đã trả lời) |
@@ -157,6 +167,8 @@ Nếu tạo superuser **trước** khi seed, khách mẫu sẽ được gán cho
 | `POST /crm/api/customers/<id>/apply-status/` | Đổi trạng thái khách hàng sang trạng thái AI đề xuất |
 | <http://127.0.0.1:8000/crm/reports/> | Trang **Báo cáo AI**, nhận định kinh doanh dựa trên số liệu tổng hợp |
 | `POST /crm/api/reports/generate/` | Sinh báo cáo nhận định bằng AI |
+| <http://127.0.0.1:8000/crm/analytics/> | Trang **Phân tích**: dashboard Apache Superset nhúng trong SmartCRM (cần Superset đang chạy, xem [docs/TH1_SUPERSET.md](docs/TH1_SUPERSET.md#9-nhúng-dashboard-vào-smartcrm)) |
+| `POST /crm/api/analytics/guest-token/` | Ra `{ok, uuid, token}`: guest token ngắn hạn để trình duyệt hiển thị dashboard nhúng |
 
 Trang `/crm/` yêu cầu đăng nhập bằng tài khoản **staff**. Mã lỗi của API: `400` dữ liệu sai, `401` chưa đăng nhập,
 `403` không có quyền, `404` không có khách, `405` sai phương thức, `503` AI lỗi.
@@ -196,7 +208,7 @@ Khi terminal hiện dòng `Starting development server at http://127.0.0.1:8000/
 |---|---|---|
 | <http://127.0.0.1:8000/> | Trang chủ giới thiệu SmartCRM, có nút **Vào hệ thống** | Không |
 | <http://127.0.0.1:8000/admin/> | **Wagtail Admin**: nhập và quản lý dữ liệu (khách hàng, đơn hàng, lịch sử tương tác) | Có |
-| <http://127.0.0.1:8000/crm/> | **SmartCRM – Tổng quan**: 4 thẻ số liệu, 5 tương tác mới nhất | Có (staff) |
+| <http://127.0.0.1:8000/crm/> | **SmartCRM – Tổng quan**: 4 thẻ số liệu, 4 biểu đồ, cảnh báo sắp hết hàng, 5 tương tác mới nhất | Có (staff) |
 | <http://127.0.0.1:8000/crm/customers/> | Danh sách khách hàng: tìm kiếm, lọc, phân trang | Có (staff) |
 | `http://127.0.0.1:8000/crm/customers/<id>/` | Chi tiết một khách + khối **✨ Gợi ý phản hồi AI** | Có (staff) |
 
@@ -223,7 +235,7 @@ Web chỉ mở được **trên chính máy đang chạy lệnh `runserver`**, v
 ### 7.4. Nạp dữ liệu mẫu (khuyến nghị trước khi demo)
 
 ```bash
-python manage.py seed_demo                    # tạo 10 khách, 12 đơn, 20 tương tác (chạy lại nhiều lần không bị trùng)
+python manage.py seed_demo                    # tạo 10 khách, 17 đơn, 20 tương tác, 13 sản phẩm (chạy lại nhiều lần không bị trùng)
 python manage.py seed_demo --analyze          # nạp thêm dữ liệu phân loại AI mô phỏng (cảm xúc, ưu tiên, tóm tắt)
 python manage.py seed_demo --reset --analyze  # xoá dữ liệu mẫu cũ rồi tạo lại từ đầu kèm phân loại AI
 ```
@@ -356,7 +368,7 @@ Danh sách model miễn phí và hạn mức do các nhà cung cấp tự thay �
 python manage.py test crm
 ```
 
-Kết quả hiện tại: **65 test – OK** (40 test cũ + 25 test cho Phân loại AI và Báo cáo AI). Mọi lời gọi AI đều được giả lập bằng `unittest.mock` và cấu hình được cô lập bằng `override_settings`, nên test **không gọi mạng** kể cả khi `.env` có key thật.
+Kết quả hiện tại: **81 test – OK** (40 test cũ + 25 test cho Phân loại AI và Báo cáo AI + 16 test cho Sản phẩm, tồn kho và biểu đồ). Mọi lời gọi AI đều được giả lập bằng `unittest.mock` và cấu hình được cô lập bằng `override_settings`, nên test **không gọi mạng** kể cả khi `.env` có key thật.
 Nội dung kiểm thử: sinh mã đơn, `subtotal`, `total_amount`, `total_spent`; prompt chứa dữ liệu khách; exception → `AIServiceError`;
 chế độ MOCK; chuyển sang model/nhà cung cấp AI dự phòng khi Gemini lỗi; chưa đăng nhập bị chuyển hướng; API suggest-reply 200/400/404/405/503; save-interaction tạo bản ghi; tìm kiếm/lọc/phân trang; API analyze/apply-status/generate-report; quyền hạn; và liên kết navbar.
 

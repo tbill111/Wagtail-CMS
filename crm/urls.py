@@ -23,4 +23,7 @@ urlpatterns = [
     path("api/customers/<int:pk>/apply-status/", views.api_apply_status, name="api_apply_status"),
     path("reports/", views.report_page, name="report_page"),
     path("api/reports/generate/", views.api_generate_report, name="api_generate_report"),
+    # Dashboard Apache Superset nhúng
+    path("analytics/", views.analytics_page, name="analytics_page"),
+    path("api/analytics/guest-token/", views.api_superset_guest_token, name="api_superset_guest_token"),
 ]
