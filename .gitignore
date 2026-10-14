@@ -23,3 +23,6 @@ Thumbs.db
 
 # Bản sao lưu CSDL (có dữ liệu + mật khẩu)
 backups/
+
+# Dữ liệu TH2 tải về (Online Retail II, bộ nhận xét tiếng Việt) – không commit
+data/

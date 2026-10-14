@@ -149,8 +149,10 @@ class GeminiCRMService:
         raw = str(exc).lower()
         return any(k in raw for k in ("503", "unavailable", "overloaded", "high demand", "500", "internal"))
 
-    def _generate(self, prompt, *, json_schema=None):
+    def _generate(self, prompt, *, json_schema=None, temperature=0.7):
         """Gọi AI và trả về văn bản. Mọi lỗi được chuyển thành ``AIServiceError``.
+
+        ``temperature`` thấp (0) cho các tác vụ phân loại cần kết quả ổn định.
 
         Thứ tự thử: Gemini (model chính, rồi ``GEMINI_FALLBACK_MODEL`` khi quá tải),
         sau đó nhà cung cấp dự phòng tương thích OpenAI (nếu đã cấu hình ``FALLBACK_AI_*``).
@@ -158,7 +160,7 @@ class GeminiCRMService:
         gemini_error = None
         if self.api_key:
             try:
-                text = self._generate_gemini(prompt, json_schema=json_schema)
+                text = self._generate_gemini(prompt, json_schema=json_schema, temperature=temperature)
                 self._state.provider = "AI Gemini"
                 return text
             except AIServiceError as exc:
@@ -168,7 +170,7 @@ class GeminiCRMService:
                 logger.warning("Gemini lỗi, chuyển sang %s", self.fallback_provider_name)
 
         try:
-            text = self._generate_openai_compatible(prompt, json_schema=json_schema)
+            text = self._generate_openai_compatible(prompt, json_schema=json_schema, temperature=temperature)
         except AIServiceError as exc:
             if gemini_error is not None:
                 raise AIServiceError(
@@ -179,12 +181,12 @@ class GeminiCRMService:
         self._state.provider = self.fallback_provider_name
         return text
 
-    def _generate_gemini(self, prompt, *, json_schema=None):
+    def _generate_gemini(self, prompt, *, json_schema=None, temperature=0.7):
         """Gọi Gemini; nếu model chính quá tải (503) thì thử lại với ``GEMINI_FALLBACK_MODEL``."""
         from google.genai import types
 
         config_kwargs = {
-            "temperature": 0.7,
+            "temperature": temperature,
             # Không dùng function calling -> tắt AFC để tránh cảnh báo của SDK
             "automatic_function_calling": types.AutomaticFunctionCallingConfig(disable=True),
         }
@@ -218,11 +220,11 @@ class GeminiCRMService:
                 raise AIServiceError("AI không trả về nội dung. Vui lòng thử lại.")
             return text
 
-    def _generate_openai_compatible(self, prompt, *, json_schema=None):
+    def _generate_openai_compatible(self, prompt, *, json_schema=None, temperature=0.7):
         """Gọi nhà cung cấp dự phòng theo chuẩn OpenAI Chat Completions (Groq, OpenRouter, DeepSeek…)."""
         name = self.fallback_provider_name
         content = prompt
-        payload = {"model": self.fallback_provider_model, "temperature": 0.7}
+        payload = {"model": self.fallback_provider_model, "temperature": temperature}
         if json_schema is not None:
             payload["response_format"] = {"type": "json_object"}
             content = (
