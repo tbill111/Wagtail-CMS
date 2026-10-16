@@ -1,0 +1,9 @@
+<dt class="col-5">Rủi ro rời bỏ</dt>
+<dd class="col-7 mb-2">
+    {% if churn_score %}
+    <span class="badge {{ churn_score.badge_class }}">{{ churn_score.percent }}% – {{ churn_score.risk_label }}</span>
+    <div class="small text-muted mt-1">Mô hình {{ churn_score.method_label }} · cập nhật {{ churn_score.run.finished_at|date:"d/m/Y" }}</div>
+    {% else %}
+    <span class="badge text-bg-secondary">Chưa có dự đoán</span>
+    {% endif %}
+</dd>

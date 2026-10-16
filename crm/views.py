@@ -151,6 +151,31 @@ def customer_list(request):
 @staff_required
 def customer_detail(request, pk):
     customer = get_object_or_404(Customer.objects.select_related("assigned_staff"), pk=pk)
+    from insights.models import ChurnScore, ModelRun
+
+    churn_score = (
+        ChurnScore.objects.filter(
+            customer_id=customer.pk,
+            run__module=ModelRun.Module.CHURN,
+            run__status=ModelRun.Status.SUCCESS,
+            run__is_selected=True,
+        )
+        .select_related("run")
+        .order_by("-run__started_at")
+        .first()
+    )
+    if churn_score:
+        churn_score.percent = round(churn_score.probability * 100)
+        churn_score.method_label = {
+            "rfm_rule": "Quy tắc RFM",
+            "logistic_regression": "Hồi quy logistic",
+            "random_forest": "Rừng ngẫu nhiên",
+        }.get(churn_score.run.method, churn_score.run.method)
+        churn_score.risk_label, churn_score.badge_class = {
+            "high": ("Cao", "text-bg-danger"),
+            "medium": ("Trung bình", "text-bg-warning"),
+            "low": ("Thấp", "text-bg-success"),
+        }.get(churn_score.risk_band, ("Không xác định", "text-bg-secondary"))
     context = {
         "customer": customer,
         "orders": customer.orders.prefetch_related("items").order_by("-created_at"),
@@ -160,6 +185,7 @@ def customer_detail(request, pk):
         "channels": InteractionLog.Channel.choices,
         "ai_is_mock": get_ai_service().is_mock,
         "max_message_length": MAX_MESSAGE_LENGTH,
+        "churn_score": churn_score,
     }
     return render(request, "crm/customer_detail.html", context)
 

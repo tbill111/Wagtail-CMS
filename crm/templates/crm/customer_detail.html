@@ -31,6 +31,7 @@
                 <dt class="col-5">Phụ trách</dt><dd class="col-7">{{ customer.assigned_staff.get_username|default:"—" }}</dd>
                 <dt class="col-5">Ngày tạo</dt><dd class="col-7">{{ customer.created_at|date:"d/m/Y" }}</dd>
                 <dt class="col-5">Tổng chi tiêu</dt><dd class="col-7 fw-semibold text-primary">{{ customer.total_spent|vnd }}</dd>
+                {% include "crm/_churn_risk.html" %}
             </dl>
         </div>
 
