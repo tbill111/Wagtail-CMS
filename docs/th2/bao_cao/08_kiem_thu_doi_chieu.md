@@ -33,7 +33,7 @@ truy vấn riêng** (không dùng `insights.data.monthly_revenue_series` – ch�
 | D. Cảm xúc | Nhãn hợp lệ · accuracy và Macro F1 tính lại từ `SentimentResult` ↔ `SentimentLabel` khớp (≤ 0,001) trên 600 câu | – | – | 4/4 ✅ |
 | E. View `ai.*` | Số phương pháp trong `ai.model_run` và số dòng `ai.revenue_forecast` (90) / `ai.churn_score` (6.000) / `ai.interaction_sentiment` (1.200) khớp ORM | 2/2 ✅ | 2/2 ✅ | 2/2 ✅ |
 
-**Kết quả: 40/40 mục KHỚP** (dự báo + rời bỏ: batch `20261017-072049`; cảm xúc: batch `20261014-215419`).
+**Kết quả: 40/40 mục KHỚP** (dự báo + rời bỏ: batch `20261017-170211`; cảm xúc: batch `20261014-215419`).
 Phương pháp được chọn: dự báo – Cùng kỳ năm trước (MAPE 20,36%); rời bỏ – Logistic Regression (AUC 0,810; Cao 793 ·
 Trung bình 484 · Thấp 723); cảm xúc – Từ điển từ khoá (Macro F1 0,582).
 
@@ -68,7 +68,7 @@ Mỗi biểu đồ: đọc số trên dashboard, chạy câu SQL tương ứng t
 | [Dự báo] Sai số các phương pháp | MAPE 20,36 · 29,44 · 29,79 | `ai.model_run` module forecast | 20,3593 · 29,4439 · 29,7908 | ✅ |
 | [Rời bỏ] 20 khách rủi ro cao nhất | Dòng 1: Khách UK-16446, 100,0% | `ORDER BY probability DESC LIMIT 1` | Khách UK-16446, 0,999996 | ✅ |
 | [Rời bỏ] Rủi ro trung bình theo tháng mua gần nhất | 01/2024 ≈ 93%; 11/2025 ≈ 21% | `AVG(probability)` theo tháng đơn gần nhất | 0,934 · 0,213 | ✅ |
-| [Rời bỏ] So sánh mô hình | AUC 0,810 · 0,782 · 0,768 | `ai.model_run` module churn | 0,8102 · 0,7820 · 0,7677 | ✅ |
+| [Rời bỏ] So sánh mô hình | AUC 0,810 · 0,791 · 0,782 | `ai.model_run` module churn | 0,8102 · 0,7907 · 0,7820 | ✅ |
 | [Cảm xúc] Cảm xúc theo tháng | 11/2025: Tích cực 22 · Trung lập 10 · Tiêu cực 10 | đếm theo tháng × nhãn | 22 · 10 · 10 | ✅ |
 | [Cảm xúc] Cảm xúc theo kênh | Email 244 · Chat 242 · Trực tiếp 60 · Điện thoại 54 | đếm theo `channel` | 244 · 242 · 60 · 54 | ✅ |
 | [Cảm xúc] Độ chính xác: từ điển và Gemini | Macro F1 0,582 · 0,575 | `ai.model_run` module sentiment | 0,5824 · 0,5745 | ✅ |

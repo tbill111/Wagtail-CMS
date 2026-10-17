@@ -50,7 +50,7 @@ nhất"* (id 92) vì trong dữ liệu Online Retail II **mọi khách đều th
 chưa phân công) – biểu đồ theo nhóm chỉ có 1 cột, không trả lời được câu hỏi nào. Bộ lọc *Nhóm khách* vẫn giữ để dùng
 khi CRM có khách nhiều nhóm.
 
-## 5.3. Kiểm tra số liệu từng biểu đồ (dữ liệu thật, batch 20261017-072049 / cảm xúc 20261014-215419)
+## 5.3. Kiểm tra số liệu từng biểu đồ (dữ liệu thật, batch 20261017-170211 / cảm xúc 20261014-215419)
 
 Mỗi biểu đồ: đọc số trên dashboard, chạy câu SQL tương ứng trên view `ai.*` qua MCP (`superset_sqllab_execute_query`,
 tài khoản `mcp_agent`) rồi so.
@@ -66,7 +66,7 @@ tài khoản `mcp_agent`) rồi so.
 | 89 | MAPE 20,36 · 29,44 · 29,79 | `ai.model_run` module forecast | 20,3593 · 29,4439 · 29,7908 | ✅ |
 | 91 | Dòng 1: Khách UK-16446, 100,0% | `ORDER BY probability DESC LIMIT 1` | Khách UK-16446, 0,999996 | ✅ |
 | 92 | 01/2024 ≈ 93%; 11/2025 ≈ 21% | `AVG(probability)` theo tháng đơn gần nhất | 0,934 · 0,213 | ✅ |
-| 93 | AUC 0,810 · 0,782 · 0,768 | `ai.model_run` module churn | 0,8102 · 0,7820 · 0,7677 | ✅ |
+| 93 | AUC 0,810 · 0,791 · 0,782 | `ai.model_run` module churn | 0,8102 · 0,7907 · 0,7820 | ✅ |
 | 94 | 11/2025: Tích cực 22 · Trung lập 10 · Tiêu cực 10 | đếm theo tháng × nhãn | 22 · 10 · 10 | ✅ |
 | 95 | Email 244 · Chat 242 · Trực tiếp 60 · Điện thoại 54 | đếm theo `channel` | 244 · 242 · 60 · 54 | ✅ |
 | 96 | Macro F1 0,582 · 0,575 | `ai.model_run` module sentiment | 0,5824 · 0,5745 | ✅ |

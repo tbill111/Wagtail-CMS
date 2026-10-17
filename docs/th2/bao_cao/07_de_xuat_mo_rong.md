@@ -21,13 +21,13 @@ khác nhau**, cộng thêm 2 tính năng LLM có sẵn trong SmartCRM:
 | | *Có sẵn trong SmartCRM:* báo cáo nhận định | Tóm tắt tình hình kinh doanh | Dùng tại trang Báo cáo AI |
 
 Mỗi bài toán có **một phương pháp đơn giản làm mốc** và đánh giá trên **cùng tập kiểm tra**, nên chênh lệch giữa các phương
-pháp là so sánh công bằng (mục 3). Kết quả so sánh thực tế (dự báo, rời bỏ: batch `20261017-072049`; cảm xúc:
+pháp là so sánh công bằng (mục 3). Kết quả so sánh thực tế (dự báo, rời bỏ: batch `20261017-170211`; cảm xúc:
 `20261014-215419`):
 
 | Bài toán | Phương pháp được chọn | Chỉ số | Nhận xét |
 |---|---|---|---|
 | Dự báo doanh thu | **Cùng kỳ năm trước** (luật) | MAPE 20,4% (SARIMA 29,4%, Holt-Winters 29,8%) | Chuỗi 24 tháng quá ngắn để mô hình thống kê học mùa vụ – mốc đơn giản thắng |
-| Khách rời bỏ | **Logistic Regression** (học máy) | AUC 0,810 (Random Forest 0,782, Luật RFM 0,768) | Học máy hơn luật RFM không nhiều – tín hiệu chính là thời gian từ lần mua cuối |
+| Khách rời bỏ | **Logistic Regression** (học máy) | AUC 0,810 (Luật RFM 0,791, Random Forest 0,782) | Học máy hơn luật RFM không nhiều – tín hiệu chính là thời gian từ lần mua cuối |
 | Cảm xúc | **Từ điển từ khoá** (luật) | Macro F1 0,582 (LLM 0,575) | LLM bắt câu tiêu cực tốt hơn hẳn (129/144 = 89,6% so với 82/144 = 56,9%) – cơ sở của đề xuất #6 |
 
 Bài học chung: **phương pháp phức tạp chỉ đáng dùng khi thắng được mốc đơn giản trên cùng tập kiểm tra** – nhóm giữ

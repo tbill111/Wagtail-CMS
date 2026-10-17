@@ -102,3 +102,14 @@ class ForecastReviewFixTests(TestCase):
         self.assertIn("không dùng được mùa vụ", " ".join(short.notes))
         full = forecast._holt_winters(self._series(30), 6, "dự báo tới")
         self.assertEqual(full.params["model"], "additive_seasonal")
+
+
+class HoltWintersIntervalTests(TestCase):
+    def test_interval_from_simulation_and_widens_with_horizon(self):
+        index = pd.date_range("2023-01-01", periods=30, freq="MS")
+        series = pd.Series([1_000_000 + (m % 12) * 200_000 + m * 5_000 for m in range(30)], index=index, dtype="int64")
+        prediction = forecast._holt_winters(series, 6, "dự báo tới")
+        self.assertIn("mô phỏng", prediction.params["confidence"])
+        self.assertTrue(all(lo <= f <= hi for lo, f, hi in zip(prediction.lower, prediction.values, prediction.upper)))
+        width = prediction.upper - prediction.lower
+        self.assertGreaterEqual(width[-1], width[0])

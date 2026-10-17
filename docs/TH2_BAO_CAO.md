@@ -241,7 +241,9 @@ hoàn thành toàn bộ dữ liệu trước khi loại tháng chưa trọn vẹ
   `1,96 × độ lệch chuẩn sai số` trên phần huấn luyện.
 - **Holt-Winters:** dùng `statsmodels.ExponentialSmoothing` với xu hướng cộng,
   mùa vụ cộng, chu kỳ 12 tháng và `initialization_method="estimated"`. Khoảng
-  tin cậy dùng độ lệch sai số giữa fitted values và dữ liệu huấn luyện. Mô hình
+  tin cậy 95% lấy bằng **mô phỏng 1.000 lần** (`simulate`, phân vị 2,5% – 97,5%) nên
+  **rộng dần theo số tháng dự báo** – phản ánh đúng việc càng dự báo xa càng kém chắc
+  chắn (nếu mô phỏng lỗi thì dùng ±1,96 × độ lệch sai số, ghi trong `notes`). Mô hình
   luôn thử bản có mùa vụ trước; khi backtest chỉ có 18 tháng (chưa đủ 2 chu kỳ),
   statsmodels báo không tính được hệ số mùa vụ ban đầu nên dùng bản không mùa vụ
   – ghi trong `notes` và `params.model` của lần chạy. Dự báo 6 tháng tới (24 tháng
@@ -264,7 +266,7 @@ bỏ qua khi tính MAPE.
 
 #### 5. Kết quả
 
-Mã batch: `20261017-072049`. Chỉ số tính trên dự báo đã làm tròn đến đồng – đúng giá
+Mã batch: `20261017-170211`. Chỉ số tính trên dự báo đã làm tròn đến đồng – đúng giá
 trị lưu trong `RevenueForecast`, nên tính lại được từ các dòng `backtest`.
 
 | Phương pháp | MAE (VNĐ) | RMSE (VNĐ) | MAPE (%) | Huấn luyện | Kiểm tra | Được chọn |
@@ -327,7 +329,7 @@ Superset đã được cài đặt.
 
 ### 3.2. Mô hình dự đoán khách hàng rời bỏ (checklist 02, 06)
 
-*Người viết: Thái Anh · Code: `insights/pipeline/churn.py`, hiển thị: `crm/templates/crm/_churn_risk.html`, `insights/display.py` · Batch: **20261017-072049***
+*Người viết: Thái Anh · Code: `insights/pipeline/churn.py`, hiển thị: `crm/templates/crm/_churn_risk.html`, `insights/display.py` · Batch: **20261017-170211***
 
 #### 1. Bài toán và câu hỏi kinh doanh
 
@@ -341,7 +343,7 @@ Cutoff bằng ngày tham chiếu trừ 180 ngày. Tập huấn luyện gồm kh�
 
 #### 3. Phương pháp
 
-- **Luật RFM (`rfm_rule`):** dùng thứ hạng phần trăm của `recency_days`; khách càng lâu chưa mua thì điểm càng cao. Đây là quy tắc không huấn luyện mô hình.
+- **Luật RFM (`rfm_rule`):** điểm = 0,7 × hạng phần trăm của `recency_days` (càng lâu chưa mua càng cao) + 0,3 × hạng phần trăm của tần suất mua **thấp**. Hạng tính so với tập huấn luyện, nên điểm của một khách không phụ thuộc vào việc chấm cùng những ai. Không học máy – trọng số đặt theo kinh nghiệm bán hàng.
 - **Logistic Regression – hồi quy logistic (`logistic_regression`):** chuẩn hoá đặc trưng bằng `StandardScaler`, dùng `class_weight="balanced"` và `max_iter=1000`.
 - **Random Forest – rừng ngẫu nhiên (`random_forest`):** dùng 300 cây, `class_weight="balanced"` và `random_state=42`. Năm đặc trưng quan trọng nhất sẽ được ghi trong kết quả batch.
 
@@ -353,12 +355,12 @@ Dữ liệu được chia ngẫu nhiên thành 70% huấn luyện và 30% kiểm
 
 #### 5. Kết quả
 
-Mã batch: **`20261017-072049`** (số lấy từ `ai.model_run`). Tập huấn luyện 1.183 khách, tập kiểm tra 507 khách.
+Mã batch: **`20261017-170211`** (số lấy từ `ai.model_run`). Tập huấn luyện 1.183 khách, tập kiểm tra 507 khách.
 
 | Phương pháp | AUC | Precision | Recall | F1 | Accuracy | n_train | n_test |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| Luật RFM | 0,768 | 66,9% | 70,3% | 0,686 | 69,2% | 1.183 | 507 |
-| **Logistic Regression ★** | **0,810** | **69,7%** | 75,2% | **0,724** | **72,6%** | 1.183 | 507 |
+| Luật RFM | 0,791 | **71,2%** | 69,4% | 0,703 | 72,0% | 1.183 | 507 |
+| **Logistic Regression ★** | **0,810** | 69,7% | 75,2% | **0,724** | **72,6%** | 1.183 | 507 |
 | Random Forest | 0,782 | 67,3% | **76,4%** | 0,716 | 71,0% | 1.183 | 507 |
 
 - **Tỷ lệ rời bỏ của tập:** 47,73% (`churn_rate` trên toàn bộ 1.690 khách có nhãn).
@@ -375,7 +377,7 @@ Mã batch: **`20261017-072049`** (số lấy từ `ai.model_run`). Tập huấn 
 
 #### 6. Kết luận
 
-Chọn **Logistic Regression** vì có AUC cao nhất (0,810), đồng thời F1 và accuracy cũng cao nhất. Ba phương pháp chênh nhau không nhiều (AUC 0,77 – 0,81) vì tín hiệu mạnh nhất là *bao lâu rồi khách chưa mua* – luật RFM chỉ dựa vào recency cũng đạt 0,768. Random Forest có recall cao nhất (bắt được 76% khách rời bỏ thật) – phù hợp nếu cửa hàng chấp nhận gọi nhầm nhiều hơn để không bỏ sót.
+Chọn **Logistic Regression** vì có AUC cao nhất (0,810), đồng thời F1 và accuracy cũng cao nhất. Ba phương pháp chênh nhau không nhiều (AUC 0,78 – 0,81) vì tín hiệu mạnh nhất là *bao lâu rồi khách chưa mua* – luật RFM chỉ dùng recency và tần suất cũng đạt 0,791, precision cao nhất (71,2%). Random Forest có recall cao nhất (bắt được 76% khách rời bỏ thật) – phù hợp nếu cửa hàng chấp nhận gọi nhầm nhiều hơn để không bỏ sót.
 
 Gợi ý cho nhân viên: ưu tiên rà soát nhóm rủi ro cao (793 khách), trước hết là khách có tổng chi tiêu lớn; xem lịch sử mua hàng và tương tác, sau đó liên hệ để hỏi nhu cầu hoặc xử lý vấn đề còn tồn đọng. Nhóm trung bình có thể nhận email nhắc sản phẩm từng mua. Không gửi cùng một nội dung tự động cho mọi khách.
 
@@ -549,7 +551,7 @@ tiếng Việt cho Claude** được làm trực tiếp khi quay video (mục 4.
 | 85 | [Tổng quan] Tỉ lệ cảm xúc | `ai.interaction_sentiment` | Tròn | nhóm `label_pred`; metric `so_cau`; lọc `is_selected` |
 
 Đối chiếu bằng `superset_sqllab_execute_query` trên **kết quả mô hình thật** (dự báo, rời bỏ: batch
-`20261017-072049`; cảm xúc: batch `20261014-215419`). Lần đối chiếu đầu (14/10) trên dữ liệu giả `seed_ai_demo` cũng khớp.
+`20261017-170211`; cảm xúc: batch `20261014-215419`). Lần đối chiếu đầu (14/10) trên dữ liệu giả `seed_ai_demo` cũng khớp.
 
 | Biểu đồ | Số trên biểu đồ | Truy vấn đối chiếu | Kết quả SQL | Khớp |
 |---|---|---|---|---|
@@ -655,7 +657,7 @@ nhất"* (id 92) vì trong dữ liệu Online Retail II **mọi khách đều th
 chưa phân công) – biểu đồ theo nhóm chỉ có 1 cột, không trả lời được câu hỏi nào. Bộ lọc *Nhóm khách* vẫn giữ để dùng
 khi CRM có khách nhiều nhóm.
 
-### 5.3. Kiểm tra số liệu từng biểu đồ (dữ liệu thật, batch 20261017-072049 / cảm xúc 20261014-215419)
+### 5.3. Kiểm tra số liệu từng biểu đồ (dữ liệu thật, batch 20261017-170211 / cảm xúc 20261014-215419)
 
 Mỗi biểu đồ: đọc số trên dashboard, chạy câu SQL tương ứng trên view `ai.*` qua MCP (`superset_sqllab_execute_query`,
 tài khoản `mcp_agent`) rồi so.
@@ -671,7 +673,7 @@ tài khoản `mcp_agent`) rồi so.
 | 89 | MAPE 20,36 · 29,44 · 29,79 | `ai.model_run` module forecast | 20,3593 · 29,4439 · 29,7908 | ✅ |
 | 91 | Dòng 1: Khách UK-16446, 100,0% | `ORDER BY probability DESC LIMIT 1` | Khách UK-16446, 0,999996 | ✅ |
 | 92 | 01/2024 ≈ 93%; 11/2025 ≈ 21% | `AVG(probability)` theo tháng đơn gần nhất | 0,934 · 0,213 | ✅ |
-| 93 | AUC 0,810 · 0,782 · 0,768 | `ai.model_run` module churn | 0,8102 · 0,7820 · 0,7677 | ✅ |
+| 93 | AUC 0,810 · 0,791 · 0,782 | `ai.model_run` module churn | 0,8102 · 0,7907 · 0,7820 | ✅ |
 | 94 | 11/2025: Tích cực 22 · Trung lập 10 · Tiêu cực 10 | đếm theo tháng × nhãn | 22 · 10 · 10 | ✅ |
 | 95 | Email 244 · Chat 242 · Trực tiếp 60 · Điện thoại 54 | đếm theo `channel` | 244 · 242 · 60 · 54 | ✅ |
 | 96 | Macro F1 0,582 · 0,575 | `ai.model_run` module sentiment | 0,5824 · 0,5745 | ✅ |
@@ -761,7 +763,7 @@ truy vấn riêng** (không dùng `insights.data.monthly_revenue_series` – ch�
 | D. Cảm xúc | Nhãn hợp lệ · accuracy và Macro F1 tính lại từ `SentimentResult` ↔ `SentimentLabel` khớp (≤ 0,001) trên 600 câu | – | – | 4/4 ✅ |
 | E. View `ai.*` | Số phương pháp trong `ai.model_run` và số dòng `ai.revenue_forecast` (90) / `ai.churn_score` (6.000) / `ai.interaction_sentiment` (1.200) khớp ORM | 2/2 ✅ | 2/2 ✅ | 2/2 ✅ |
 
-**Kết quả: 40/40 mục KHỚP** (dự báo + rời bỏ: batch `20261017-072049`; cảm xúc: batch `20261014-215419`).
+**Kết quả: 40/40 mục KHỚP** (dự báo + rời bỏ: batch `20261017-170211`; cảm xúc: batch `20261014-215419`).
 Phương pháp được chọn: dự báo – Cùng kỳ năm trước (MAPE 20,36%); rời bỏ – Logistic Regression (AUC 0,810; Cao 793 ·
 Trung bình 484 · Thấp 723); cảm xúc – Từ điển từ khoá (Macro F1 0,582).
 
@@ -796,7 +798,7 @@ Mỗi biểu đồ: đọc số trên dashboard, chạy câu SQL tương ứng t
 | [Dự báo] Sai số các phương pháp | MAPE 20,36 · 29,44 · 29,79 | `ai.model_run` module forecast | 20,3593 · 29,4439 · 29,7908 | ✅ |
 | [Rời bỏ] 20 khách rủi ro cao nhất | Dòng 1: Khách UK-16446, 100,0% | `ORDER BY probability DESC LIMIT 1` | Khách UK-16446, 0,999996 | ✅ |
 | [Rời bỏ] Rủi ro trung bình theo tháng mua gần nhất | 01/2024 ≈ 93%; 11/2025 ≈ 21% | `AVG(probability)` theo tháng đơn gần nhất | 0,934 · 0,213 | ✅ |
-| [Rời bỏ] So sánh mô hình | AUC 0,810 · 0,782 · 0,768 | `ai.model_run` module churn | 0,8102 · 0,7820 · 0,7677 | ✅ |
+| [Rời bỏ] So sánh mô hình | AUC 0,810 · 0,791 · 0,782 | `ai.model_run` module churn | 0,8102 · 0,7907 · 0,7820 | ✅ |
 | [Cảm xúc] Cảm xúc theo tháng | 11/2025: Tích cực 22 · Trung lập 10 · Tiêu cực 10 | đếm theo tháng × nhãn | 22 · 10 · 10 | ✅ |
 | [Cảm xúc] Cảm xúc theo kênh | Email 244 · Chat 242 · Trực tiếp 60 · Điện thoại 54 | đếm theo `channel` | 244 · 242 · 60 · 54 | ✅ |
 | [Cảm xúc] Độ chính xác: từ điển và Gemini | Macro F1 0,582 · 0,575 | `ai.model_run` module sentiment | 0,5824 · 0,5745 | ✅ |
@@ -859,13 +861,13 @@ khác nhau**, cộng thêm 2 tính năng LLM có sẵn trong SmartCRM:
 | | *Có sẵn trong SmartCRM:* báo cáo nhận định | Tóm tắt tình hình kinh doanh | Dùng tại trang Báo cáo AI |
 
 Mỗi bài toán có **một phương pháp đơn giản làm mốc** và đánh giá trên **cùng tập kiểm tra**, nên chênh lệch giữa các phương
-pháp là so sánh công bằng (mục 3). Kết quả so sánh thực tế (dự báo, rời bỏ: batch `20261017-072049`; cảm xúc:
+pháp là so sánh công bằng (mục 3). Kết quả so sánh thực tế (dự báo, rời bỏ: batch `20261017-170211`; cảm xúc:
 `20261014-215419`):
 
 | Bài toán | Phương pháp được chọn | Chỉ số | Nhận xét |
 |---|---|---|---|
 | Dự báo doanh thu | **Cùng kỳ năm trước** (luật) | MAPE 20,4% (SARIMA 29,4%, Holt-Winters 29,8%) | Chuỗi 24 tháng quá ngắn để mô hình thống kê học mùa vụ – mốc đơn giản thắng |
-| Khách rời bỏ | **Logistic Regression** (học máy) | AUC 0,810 (Random Forest 0,782, Luật RFM 0,768) | Học máy hơn luật RFM không nhiều – tín hiệu chính là thời gian từ lần mua cuối |
+| Khách rời bỏ | **Logistic Regression** (học máy) | AUC 0,810 (Luật RFM 0,791, Random Forest 0,782) | Học máy hơn luật RFM không nhiều – tín hiệu chính là thời gian từ lần mua cuối |
 | Cảm xúc | **Từ điển từ khoá** (luật) | Macro F1 0,582 (LLM 0,575) | LLM bắt câu tiêu cực tốt hơn hẳn (129/144 = 89,6% so với 82/144 = 56,9%) – cơ sở của đề xuất #6 |
 
 Bài học chung: **phương pháp phức tạp chỉ đáng dùng khi thắng được mốc đơn giản trên cùng tập kiểm tra** – nhóm giữ
