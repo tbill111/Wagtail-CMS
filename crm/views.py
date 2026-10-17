@@ -12,6 +12,8 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
+from insights.display import latest_customer_risk
+
 from . import analytics
 from .models import AIReport, Customer, InteractionLog, OrderItem, Product
 from .services import AIServiceError, get_ai_service, superset
@@ -160,6 +162,7 @@ def customer_detail(request, pk):
         "channels": InteractionLog.Channel.choices,
         "ai_is_mock": get_ai_service().is_mock,
         "max_message_length": MAX_MESSAGE_LENGTH,
+        "churn_score": latest_customer_risk(customer),  # TH2: rủi ro rời bỏ (1 truy vấn)
     }
     return render(request, "crm/customer_detail.html", context)
 
