@@ -109,9 +109,13 @@ python manage.py test                                   # toàn bộ test phải
 View `ai.*` tự lấy batch mới nhất, không cần chạy lại file 03. **Đúng khi:** `verify_ai_results` in
 "Tất cả 40 mục KHỚP" (có `GEMINI_API_KEY`; không có key thì module cảm xúc chạy chế độ mô phỏng).
 
-Dashboard: tab **Tổng quan** (4 biểu đồ `[Tổng quan] …`) do bước 7 tạo. Ba tab **Dự báo · Rời bỏ · Cảm xúc** dựng qua
-Superset MCP theo `docs/th2/prompts/04_hoang_anh_dashboard.md` (danh sách biểu đồ và cách kiểm tra số liệu), hoặc
-**Import** file xuất dashboard của nhóm trong Superset → Dashboards → Import.
+Dashboard 4 tab: **Import** `docs/th2/dashboard/smartcrm_ai_insights_export.zip` (Superset → Dashboards → Import, nhập
+mật khẩu `superset_ro` khi được hỏi), hoặc tạo 16 biểu đồ qua Superset MCP theo `docs/th2/bao_cao/06_dashboard.md` mục
+5.2. Sau đó ghép tab, khối giới thiệu và bộ lọc bằng tài khoản admin:
+```powershell
+python superset/layout_th2.py
+```
+**Đúng khi:** in "4 tab, 16 biểu đồ, 3 bộ lọc".
 
 ## 9. Chạy web SmartCRM
 
@@ -133,4 +137,5 @@ http://127.0.0.1:8000/crm/analytics/ (tab **AI Insights** là dashboard TH2 nhú
 | Django báo `connection timeout expired` | Docker Desktop chưa chạy (thường sau khi khởi động lại máy) – mở Docker, chờ `docker ps` thấy `smartcrm-db-1 (healthy)` |
 | Sửa code xong trình duyệt vẫn thấy giao diện cũ | còn tiến trình `runserver` cũ giữ cổng 8000 – tắt hết rồi chạy lại |
 | `verify_ai_results` báo "Chỉ có dữ liệu giả" | chưa chạy `run_ai_pipeline` cho module đó (bước 8) |
+| `layout_th2.py` báo "Chưa có biểu đồ …" | chưa tạo đủ 16 biểu đồ qua MCP hoặc chưa Import file ZIP |
 | Biểu đồ Superset báo *Custom SQL fields cannot contain sub-queries* | Superset chặn truy vấn con trong bộ lọc tự viết – dùng metric tổng hợp, ví dụ `(ARRAY_AGG(forecast ORDER BY month))[1]` |
