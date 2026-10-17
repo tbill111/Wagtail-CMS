@@ -30,11 +30,16 @@ hoàn thành toàn bộ dữ liệu trước khi loại tháng chưa trọn vẹ
   `1,96 × độ lệch chuẩn sai số` trên phần huấn luyện.
 - **Holt-Winters:** dùng `statsmodels.ExponentialSmoothing` với xu hướng cộng,
   mùa vụ cộng, chu kỳ 12 tháng và `initialization_method="estimated"`. Khoảng
-  tin cậy dùng độ lệch sai số giữa fitted values và dữ liệu huấn luyện. Khi
-  backtest chỉ có 18 tháng huấn luyện, cấu hình không mùa vụ được dùng theo quy
-  ước của hợp đồng nếu cấu hình mùa vụ không phù hợp.
-- **SARIMA:** dùng `SARIMAX` với `order=(1,1,1)` và
-  `seasonal_order=(0,1,1,12)` khi có đủ dữ liệu. Khoảng tin cậy lấy từ
+  tin cậy dùng độ lệch sai số giữa fitted values và dữ liệu huấn luyện. Mô hình
+  luôn thử bản có mùa vụ trước; khi backtest chỉ có 18 tháng (chưa đủ 2 chu kỳ),
+  statsmodels báo không tính được hệ số mùa vụ ban đầu nên dùng bản không mùa vụ
+  – ghi trong `notes` và `params.model` của lần chạy. Dự báo 6 tháng tới (24 tháng
+  huấn luyện) dùng bản có mùa vụ.
+- **SARIMA:** dùng `SARIMAX` (tham số mặc định của statsmodels) với
+  `order=(1,1,1)` và `seasonal_order=(0,1,1,12)` khi có đủ 24 tháng; chuỗi ngắn hơn
+  thử `(0,1,0,12)` rồi `(1,1,1)` không mùa vụ. Cấu hình nào lỗi hoặc cho dự báo
+  **phân kỳ** (vượt 3 lần doanh thu tháng cao nhất) thì bị loại và chuyển cấu hình
+  sau; cấu hình thực dùng ghi trong `params` và `notes`. Khoảng tin cậy lấy từ
   `get_forecast().conf_int(alpha=0.05)`. Các giá trị âm được cắt về 0.
 
 ## 4. Cách đánh giá
@@ -48,22 +53,44 @@ bỏ qua khi tính MAPE.
 
 ## 5. Kết quả
 
-Mã batch: `20261016-231213`.
+Mã batch: `20261017-072049`. Chỉ số tính trên dự báo đã làm tròn đến đồng – đúng giá
+trị lưu trong `RevenueForecast`, nên tính lại được từ các dòng `backtest`.
 
 | Phương pháp | MAE (VNĐ) | RMSE (VNĐ) | MAPE (%) | Huấn luyện | Kiểm tra | Được chọn |
 |---|---:|---:|---:|---:|---:|---|
-| seasonal_naive | 1.657.659.575,0000 | 1.847.696.404,2736 | 20,3593 | 18 | 6 | Có |
-| holt_winters | 2.905.651.299,9123 | 3.290.414.554,2391 | 29,7908 | 18 | 6 | Không |
-| sarima | 1.706.328.304,1428 | 1.921.646.836,0000 | 20,8247 | 18 | 6 | Không |
+| seasonal_naive | 1.657.659.575 | 1.847.696.404 | 20,3593 | 18 | 6 | Có |
+| sarima | 2.792.891.919 | 3.176.278.363 | 29,4439 | 18 | 6 | Không |
+| holt_winters | 2.905.651.300 | 3.290.414.554 | 29,7908 | 18 | 6 | Không |
 
 Mỗi phương pháp thành công và ghi đủ 18 dòng `history`, 6 dòng `backtest` và
 6 dòng `future`. `seasonal_naive` được chọn vì có MAPE nhỏ nhất.
+
+Chi tiết 6 tháng kiểm tra (tỷ VNĐ):
+
+| Tháng | Thực tế | seasonal_naive | holt_winters | sarima |
+|---|---:|---:|---:|---:|
+| 06/2025 | 8,79 | 6,75 | 6,89 | 7,82 |
+| 07/2025 | 5,59 | 7,40 | 6,98 | 7,20 |
+| 08/2025 | 5,79 | 7,14 | 7,07 | 7,58 |
+| 09/2025 | 10,21 | 7,24 | 7,16 | 7,35 |
+| 10/2025 | 12,56 | 11,01 | 7,26 | 7,49 |
+| 11/2025 | 11,86 | 12,10 | 7,35 | 7,40 |
+
+Ghi chú của lần chạy: Holt-Winters backtest dùng bản không mùa vụ (18 tháng); SARIMA
+backtest loại cấu hình `(1,1,1)×(0,1,0,12)` (lỗi LU decomposition) và dùng `(1,1,1)`
+không mùa vụ. Vì vậy hai mô hình này dự báo gần như phẳng (≈ 7–7,5 tỷ) và bỏ lỡ đỉnh
+tháng 10 – 11.
+
+**Dự báo 6 tháng tới** (phương pháp được chọn, tỷ VNĐ, khoảng tin cậy 95%):
+12/2025 **6,92** (3,64 – 10,19) · 01/2026 3,96 (0,68 – 7,23) · 02/2026 4,33 ·
+03/2026 5,53 · 04/2026 4,85 · 05/2026 6,80 – tổng ≈ 32,4 tỷ.
 
 ## 6. Kết luận
 
 Với batch này, `seasonal_naive` là phương pháp phù hợp nhất trong ba phương
 pháp theo tiêu chí MAPE. Kết quả cho thấy việc lặp lại doanh thu cùng tháng của
-năm trước phù hợp hơn Holt-Winters và SARIMA trên chuỗi 24 tháng hiện có.
+năm trước phù hợp hơn Holt-Winters và SARIMA trên chuỗi 24 tháng hiện có: với 18 tháng
+huấn luyện, hai mô hình thống kê không học được mùa vụ nên bỏ lỡ đỉnh cuối năm.
 
 ## 7. Hạn chế
 

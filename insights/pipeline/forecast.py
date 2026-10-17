@@ -1,5 +1,6 @@
 """Forecasting methods for monthly revenue."""
 
+import logging
 from dataclasses import dataclass
 
 import numpy as np
@@ -15,6 +16,10 @@ from .base import MethodResult, run_method, select_best
 
 METHODS = ("seasonal_naive", "holt_winters", "sarima")
 Z_95 = 1.96
+# Dự báo vượt quá MAX_GROWTH lần doanh thu tháng lớn nhất trong lịch sử → coi là mô hình phân kỳ
+MAX_GROWTH = 3
+
+logger = logging.getLogger("insights")
 
 
 @dataclass
@@ -61,21 +66,20 @@ def _seasonal_naive(series, horizon):
     )
 
 
-def _holt_winters(series, horizon, seasonal=True):
+def _holt_winters(series, horizon, stage):
+    """Thử Holt-Winters có mùa vụ trước; không chạy được (chuỗi < 2 chu kỳ) thì dùng bản chỉ có xu hướng."""
     notes = []
     try:
         model = ExponentialSmoothing(
-            series, trend="add", seasonal="add" if seasonal else None,
-            seasonal_periods=12 if seasonal else None,
+            series, trend="add", seasonal="add", seasonal_periods=12,
             initialization_method="estimated",
         ).fit()
         predictions = np.asarray(model.forecast(horizon), dtype=float)
         fitted = np.asarray(model.fittedvalues, dtype=float)
         method = "additive_seasonal"
     except (ValueError, np.linalg.LinAlgError) as exc:
-        if not seasonal:
-            raise
-        notes.append(f"Không hội tụ mùa vụ ({exc}); dùng Holt không mùa vụ cho backtest.")
+        notes.append(f"Holt-Winters ({stage}, {len(series)} tháng): không dùng được mùa vụ ({exc}); "
+                     "dùng Holt không mùa vụ.")
         model = ExponentialSmoothing(
             series, trend="add", initialization_method="estimated",
         ).fit()
@@ -92,8 +96,9 @@ def _holt_winters(series, horizon, seasonal=True):
     )
 
 
-def _sarima(series, horizon):
+def _sarima(series, horizon, stage):
     notes = []
+    limit = MAX_GROWTH * float(np.max(np.abs(np.asarray(series, dtype=float))))
     configs = []
     if len(series) >= 24:
         configs.append(((1, 1, 1), (0, 1, 1, 12)))
@@ -103,17 +108,19 @@ def _sarima(series, horizon):
     last_error = None
     for order, seasonal_order in configs:
         try:
-            model = SARIMAX(
-                series, order=order, seasonal_order=seasonal_order,
-                enforce_stationarity=False, enforce_invertibility=False,
-            ).fit(disp=False)
-            interval = model.get_forecast(horizon).conf_int(alpha=0.05)
-            predictions = np.asarray(model.get_forecast(horizon).predicted_mean, dtype=float)
+            model = SARIMAX(series, order=order, seasonal_order=seasonal_order).fit(disp=False)
+            prediction = model.get_forecast(horizon)
+            interval = prediction.conf_int(alpha=0.05)
+            predictions = np.asarray(prediction.predicted_mean, dtype=float)
+            if not np.all(np.isfinite(predictions)) or np.max(np.abs(predictions)) > limit:
+                raise ValueError(f"dự báo phân kỳ (vượt {MAX_GROWTH} lần doanh thu tháng cao nhất)")
             lower = np.asarray(interval.iloc[:, 0], dtype=float)
             upper = np.asarray(interval.iloc[:, 1], dtype=float)
             predictions = np.maximum(predictions, 0)
             lower = np.maximum(lower, 0)
             upper = np.maximum(upper, predictions)
+            if order != configs[0][0] or seasonal_order != configs[0][1] or len(series) < 24:
+                notes.append(f"SARIMA ({stage}, {len(series)} tháng): dùng cấu hình {order}×{seasonal_order}.")
             return Prediction(
                 predictions, np.minimum(lower, predictions), upper,
                 {"order": order, "seasonal_order": seasonal_order,
@@ -122,9 +129,10 @@ def _sarima(series, horizon):
             )
         except (ValueError, np.linalg.LinAlgError, TypeError, IndexError) as exc:
             last_error = exc
+            notes.append(f"SARIMA {order}×{seasonal_order} bị loại: {str(exc).rstrip('.')}.")
     predictions = np.repeat(float(series.iloc[-1]), horizon)
     _, lower, upper = _interval(predictions, _error_std(np.asarray(series)[1:], np.asarray(series)[:-1]))
-    notes.append(f"SARIMA không thể fit trên chuỗi ngắn ({last_error}); dùng mức tháng liền trước.")
+    notes.append(f"SARIMA ({stage}): không cấu hình nào dùng được ({last_error}); dùng mức tháng liền trước.")
     return Prediction(
         predictions, lower, upper,
         {"order": None, "seasonal_order": None,
@@ -134,14 +142,13 @@ def _sarima(series, horizon):
 
 
 def _predict(method, series, horizon, backtest=False):
+    stage = "backtest" if backtest else "dự báo tới"
     if method == "seasonal_naive":
         return _seasonal_naive(series, horizon)
     if method == "holt_winters":
-        if backtest and len(series) < 24:
-            return _holt_winters(series, horizon, seasonal=False)
-        return _holt_winters(series, horizon, seasonal=True)
+        return _holt_winters(series, horizon, stage)
     if method == "sarima":
-        return _sarima(series, horizon)
+        return _sarima(series, horizon, stage)
     raise ValueError(f"Phương pháp không hợp lệ: {method}")
 
 
@@ -150,7 +157,8 @@ def _metrics(actual, forecast, n_train):
     forecast = np.asarray(forecast, dtype=float)
     errors = actual - forecast
     nonzero = actual != 0
-    mape = float(np.mean(np.abs(errors[nonzero] / actual[nonzero])) * 100) if nonzero.any() else 0.0
+    # Không có tháng doanh thu khác 0 thì không tính được MAPE (None – select_best bỏ qua, không chọn nhầm)
+    mape = float(np.mean(np.abs(errors[nonzero] / actual[nonzero])) * 100) if nonzero.any() else None
     return {
         "mae": float(np.mean(np.abs(errors))),
         "rmse": float(np.sqrt(np.mean(errors ** 2))),
@@ -188,7 +196,8 @@ def _run_method(run, method, series):
     notes = list(backtest.notes) + list(future.notes)
     _write_rows(run, history, test, backtest, future, pd.date_range(
         series.index[-1] + pd.offsets.MonthBegin(), periods=FORECAST_HORIZON, freq="MS"))
-    metrics = _metrics(test, backtest.values, len(history))
+    # Tính trên đúng giá trị đã lưu (làm tròn đến đồng) để metrics tính lại được từ các dòng backtest
+    metrics = _metrics(test, [_money(value) for value in backtest.values], len(history))
     if (test == 0).any():
         notes.append(f"Bỏ qua {(test == 0).sum()} tháng doanh thu thực tế bằng 0 khi tính MAPE.")
     return MethodResult(metrics=metrics, n_rows=len(history) + len(test) + FORECAST_HORIZON,
@@ -201,7 +210,8 @@ def run(batch: str) -> list[ModelRun]:
     series = _as_series(monthly_revenue_series())
     if series.empty:
         raise RuntimeError("Chưa có dữ liệu doanh thu. Chạy import_th2_data trước.")
-    print(f"Doanh thu: {len(series)} tháng, {series.index[0].date()} – {series.index[-1].date()}, tổng {_money(series.sum())} VNĐ")
+    logger.info("Doanh thu: %s tháng, %s – %s, tổng %s VNĐ", len(series), series.index[0].date(),
+                series.index[-1].date(), _money(series.sum()))
     runs = [
         run_method(batch, ModelRun.Module.FORECAST, method, lambda run, method=method: _run_method(run, method, series))
         for method in METHODS
