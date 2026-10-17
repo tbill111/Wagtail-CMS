@@ -157,7 +157,8 @@ Superset: kết nối **"SmartCRM TH2 (chỉ đọc)"**, 4 dataset trên đã c�
 
 - Dashboard **"SmartCRM – AI Insights"**, slug **`smartcrm-ai-insights`**, 4 tab: **Tổng quan · Dự báo · Rời bỏ · Cảm xúc**.
   Khung dashboard (tab Tổng quan + 4 biểu đồ Tổng quan) do `superset/bootstrap_th2.py` tạo và bật nhúng; Hoàng Anh
-  **thêm 3 tab còn lại vào chính dashboard này**, không tạo dashboard mới.
+  **thêm 3 tab còn lại vào chính dashboard này**, không tạo dashboard mới. Biểu đồ tạo qua MCP (`mcp_agent`); việc ghép
+  4 tab, khối Markdown và bộ lọc cần quyền admin nên làm bằng `python superset/layout_th2.py` (tìm biểu đồ theo tên).
 - SmartCRM nhúng dashboard này ở tab **AI Insights** của trang `/crm/analytics/` (`SUPERSET_DASHBOARDS` trong settings).
 - Tên biểu đồ có tiền tố tab: `[Tổng quan] …`, `[Dự báo] …`, `[Rời bỏ] …`, `[Cảm xúc] …`.
 - Mọi biểu đồ chỉ đọc từ dataset trên schema `ai` (và `analytics` nếu cần), qua kết nối "SmartCRM TH2 (chỉ đọc)".

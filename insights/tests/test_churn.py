@@ -135,3 +135,29 @@ class ChurnRiskPageTests(TestCase):
             ChurnScore.objects.create(run=run_row, customer=self.customer, probability=probability,
                                       risk_band=risk_band(probability))
         self.assertContains(self.client.get(self.url), "78% – Cao")
+
+
+class RFMRuleTests(TestCase):
+    """Luật RFM: kết hợp recency + tần suất thấp, xếp hạng theo tập huấn luyện (giống backup, AUC tốt hơn)."""
+
+    def test_low_frequency_raises_score_at_same_recency(self):
+        import pandas as pd
+
+        from insights.pipeline.churn import RFMRule
+
+        train = pd.DataFrame({"recency_days": [10, 50, 100, 200, 300], "frequency": [9, 5, 3, 2, 1]})
+        rule = RFMRule().fit(train)
+        same_recency = pd.DataFrame({"recency_days": [100, 100], "frequency": [9, 1]})
+        loyal, rare = rule.score(same_recency)
+        self.assertGreater(rare, loyal)
+        self.assertTrue(0 <= loyal <= 1 and 0 <= rare <= 1)
+
+    def test_score_does_not_depend_on_who_else_is_scored(self):
+        import pandas as pd
+
+        from insights.pipeline.churn import RFMRule
+
+        rule = RFMRule().fit(pd.DataFrame({"recency_days": [10, 50, 100, 200], "frequency": [6, 4, 2, 1]}))
+        alone = rule.score(pd.DataFrame({"recency_days": [120], "frequency": [2]}))[0]
+        crowd = rule.score(pd.DataFrame({"recency_days": [5, 120, 400], "frequency": [9, 2, 1]}))[1]
+        self.assertAlmostEqual(alone, crowd)

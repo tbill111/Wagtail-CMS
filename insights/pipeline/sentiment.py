@@ -180,7 +180,9 @@ def run_gemini(run, data):
         SentimentResult.objects.bulk_create([
             SentimentResult(run=run, interaction_id=pk, label=label)
             for pk, label in zip(data["interaction_id"], preds)])
-        return MethodResult(metrics=evaluate(data["true"], preds), n_rows=len(preds), notes=MOCK_NOTE)
+        # đủ khoá metrics theo hợp đồng (avg_latency_ms = 0 vì không gọi AI)
+        return MethodResult(metrics=evaluate(data["true"], preds, [0] * len(preds)), n_rows=len(preds),
+                            notes=MOCK_NOTE)
 
     texts = list(data["text"])
     preds, confidences, latencies, providers, missing = [], [], [], {}, 0

@@ -40,9 +40,9 @@ quả AI trở lại SmartCRM (dashboard nhúng + điểm rủi ro trên trang k
 | Dự báo doanh thu | Chọn *Cùng kỳ năm trước* – MAPE 20,4%; dự báo 6 tháng tới ≈ 32,4 tỷ ₫ |
 | Khách rời bỏ | Chọn *Logistic Regression* – AUC 0,810; 793 khách rủi ro cao, trong đó 89 khách vẫn đang mua → danh sách chăm sóc |
 | Cảm xúc | Chọn *Từ điển từ khoá* – Macro F1 0,582; LLM bắt câu tiêu cực 89,6% |
-| Superset MCP | Biểu đồ tạo qua MCP bằng tài khoản `mcp_agent` (không ghi được dữ liệu, không thấy CSDL TH1) |
-| Dashboard | 4 tab nhúng tại `/crm/analytics/?tab=ai`; 15/15 biểu đồ khớp SQL (mục 6.4) |
-| Kiểm thử | 161 test tự động qua; `verify_ai_results` 40/40 mục khớp |
+| Superset MCP | 16 biểu đồ tạo qua MCP bằng tài khoản `mcp_agent` (không ghi được dữ liệu, không thấy CSDL TH1) |
+| Dashboard | 4 tab, 16 biểu đồ, 3 bộ lọc, nhúng tại `/crm/analytics/?tab=ai`; 15/15 biểu đồ khớp SQL |
+| Kiểm thử | 164 test tự động qua; `verify_ai_results` 40/40 mục khớp |
 
 **Thành viên và phân công.**
 
@@ -51,7 +51,7 @@ quả AI trở lại SmartCRM (dashboard nhúng + điểm rủi ro trên trang k
 | 1 | **Tùng** (nhóm trưởng) | Kiến trúc, dữ liệu thật, Superset MCP, module cảm xúc, tích hợp | 01, 03, 06 (+ 02, 05) | app `insights`, `import_th2_data`, `run_ai_pipeline`, schema `ai`, `sentiment.py`, cấu hình MCP, mục 2, 3.3, 4, 7 |
 | 2 | **Ngọc Anh** | Module dự báo doanh thu | 02, 05, 06 | `forecast.py`, test, mục 3.1 |
 | 3 | **Thái Anh** | Module khách rời bỏ + hiển thị trên trang khách | 02, 05, 06 | `churn.py`, `_churn_risk.html`, test, mục 3.2 |
-| 4 | **Hoàng Anh** | Dashboard AI Insights qua MCP | 03, 04 | 12 biểu đồ 3 tab, file xuất dashboard, mục 4.5, 5 (*chờ gộp vào `main`*) |
+| 4 | **Hoàng Anh** | Dashboard AI Insights qua MCP | 03, 04 | 12 biểu đồ 3 tab, `layout_th2.py`, file xuất dashboard, mục 4.5, 5 |
 | 5 | **Hoàng Hưng** | Kiểm thử, đối chiếu, báo cáo, video | 05 | `verify_ai_results`, test, mục 6, báo cáo gộp, kịch bản video |
 
 Luật chung của nhóm (tên bảng, cột, phương pháp, chỉ số): `docs/th2/HOP_DONG_DU_LIEU.md`.
@@ -197,6 +197,14 @@ cho từng nhân viên đã đăng nhập; danh sách tab đặt trong `SUPERSET
 
 ![Trang Phân tích – tab AI Insights](th2/bao_cao/img/smartcrm_ai_insights_nhung.png)
 
+Ngoài dashboard, kết quả AI còn đi thẳng vào thao tác hằng ngày của nhân viên:
+- Trang **chi tiết khách** (`/crm/customers/<id>/`) có dòng **Rủi ro rời bỏ** – ví dụ "100% – Cao · Mô hình Logistic
+  Regression · cập nhật 17/10/2026" – đọc từ `ChurnScore` của phương pháp được chọn trong batch rời bỏ mới nhất, ưu tiên
+  batch thật hơn batch `demo` (`insights/display.py`, 1 truy vấn). Khách chưa có điểm hiện "Chưa có dự đoán".
+- Admin có menu **Kết quả AI** (chỉ xem) cho từng lần chạy mô hình: chỉ số, tham số, ghi chú.
+
+![Dòng Rủi ro rời bỏ trên trang khách](th2/bao_cao/img/smartcrm_khach_rui_ro_cao.png)
+
 ## 3. Mô hình AI (checklist 02, 06)
 
 Ba bài toán, mỗi bài so sánh nhiều phương pháp trên cùng tập kiểm tra; số liệu lấy từ `ai.model_run` của batch ghi ở đầu mỗi mục.
@@ -233,7 +241,9 @@ hoàn thành toàn bộ dữ liệu trước khi loại tháng chưa trọn vẹ
   `1,96 × độ lệch chuẩn sai số` trên phần huấn luyện.
 - **Holt-Winters:** dùng `statsmodels.ExponentialSmoothing` với xu hướng cộng,
   mùa vụ cộng, chu kỳ 12 tháng và `initialization_method="estimated"`. Khoảng
-  tin cậy dùng độ lệch sai số giữa fitted values và dữ liệu huấn luyện. Mô hình
+  tin cậy 95% lấy bằng **mô phỏng 1.000 lần** (`simulate`, phân vị 2,5% – 97,5%) nên
+  **rộng dần theo số tháng dự báo** – phản ánh đúng việc càng dự báo xa càng kém chắc
+  chắn (nếu mô phỏng lỗi thì dùng ±1,96 × độ lệch sai số, ghi trong `notes`). Mô hình
   luôn thử bản có mùa vụ trước; khi backtest chỉ có 18 tháng (chưa đủ 2 chu kỳ),
   statsmodels báo không tính được hệ số mùa vụ ban đầu nên dùng bản không mùa vụ
   – ghi trong `notes` và `params.model` của lần chạy. Dự báo 6 tháng tới (24 tháng
@@ -256,7 +266,7 @@ bỏ qua khi tính MAPE.
 
 #### 5. Kết quả
 
-Mã batch: `20261017-072049`. Chỉ số tính trên dự báo đã làm tròn đến đồng – đúng giá
+Mã batch: `20261017-170211`. Chỉ số tính trên dự báo đã làm tròn đến đồng – đúng giá
 trị lưu trong `RevenueForecast`, nên tính lại được từ các dòng `backtest`.
 
 | Phương pháp | MAE (VNĐ) | RMSE (VNĐ) | MAPE (%) | Huấn luyện | Kiểm tra | Được chọn |
@@ -319,7 +329,7 @@ Superset đã được cài đặt.
 
 ### 3.2. Mô hình dự đoán khách hàng rời bỏ (checklist 02, 06)
 
-*Người viết: Thái Anh · Code: `insights/pipeline/churn.py`, hiển thị: `crm/templates/crm/_churn_risk.html`, `insights/display.py` · Batch: **20261017-072049***
+*Người viết: Thái Anh · Code: `insights/pipeline/churn.py`, hiển thị: `crm/templates/crm/_churn_risk.html`, `insights/display.py` · Batch: **20261017-170211***
 
 #### 1. Bài toán và câu hỏi kinh doanh
 
@@ -333,7 +343,7 @@ Cutoff bằng ngày tham chiếu trừ 180 ngày. Tập huấn luyện gồm kh�
 
 #### 3. Phương pháp
 
-- **Luật RFM (`rfm_rule`):** dùng thứ hạng phần trăm của `recency_days`; khách càng lâu chưa mua thì điểm càng cao. Đây là quy tắc không huấn luyện mô hình.
+- **Luật RFM (`rfm_rule`):** điểm = 0,7 × hạng phần trăm của `recency_days` (càng lâu chưa mua càng cao) + 0,3 × hạng phần trăm của tần suất mua **thấp**. Hạng tính so với tập huấn luyện, nên điểm của một khách không phụ thuộc vào việc chấm cùng những ai. Không học máy – trọng số đặt theo kinh nghiệm bán hàng.
 - **Logistic Regression – hồi quy logistic (`logistic_regression`):** chuẩn hoá đặc trưng bằng `StandardScaler`, dùng `class_weight="balanced"` và `max_iter=1000`.
 - **Random Forest – rừng ngẫu nhiên (`random_forest`):** dùng 300 cây, `class_weight="balanced"` và `random_state=42`. Năm đặc trưng quan trọng nhất sẽ được ghi trong kết quả batch.
 
@@ -345,12 +355,12 @@ Dữ liệu được chia ngẫu nhiên thành 70% huấn luyện và 30% kiểm
 
 #### 5. Kết quả
 
-Mã batch: **`20261017-072049`** (số lấy từ `ai.model_run`). Tập huấn luyện 1.183 khách, tập kiểm tra 507 khách.
+Mã batch: **`20261017-170211`** (số lấy từ `ai.model_run`). Tập huấn luyện 1.183 khách, tập kiểm tra 507 khách.
 
 | Phương pháp | AUC | Precision | Recall | F1 | Accuracy | n_train | n_test |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| Luật RFM | 0,768 | 66,9% | 70,3% | 0,686 | 69,2% | 1.183 | 507 |
-| **Logistic Regression ★** | **0,810** | **69,7%** | 75,2% | **0,724** | **72,6%** | 1.183 | 507 |
+| Luật RFM | 0,791 | **71,2%** | 69,4% | 0,703 | 72,0% | 1.183 | 507 |
+| **Logistic Regression ★** | **0,810** | 69,7% | 75,2% | **0,724** | **72,6%** | 1.183 | 507 |
 | Random Forest | 0,782 | 67,3% | **76,4%** | 0,716 | 71,0% | 1.183 | 507 |
 
 - **Tỷ lệ rời bỏ của tập:** 47,73% (`churn_rate` trên toàn bộ 1.690 khách có nhãn).
@@ -367,7 +377,7 @@ Mã batch: **`20261017-072049`** (số lấy từ `ai.model_run`). Tập huấn 
 
 #### 6. Kết luận
 
-Chọn **Logistic Regression** vì có AUC cao nhất (0,810), đồng thời F1 và accuracy cũng cao nhất. Ba phương pháp chênh nhau không nhiều (AUC 0,77 – 0,81) vì tín hiệu mạnh nhất là *bao lâu rồi khách chưa mua* – luật RFM chỉ dựa vào recency cũng đạt 0,768. Random Forest có recall cao nhất (bắt được 76% khách rời bỏ thật) – phù hợp nếu cửa hàng chấp nhận gọi nhầm nhiều hơn để không bỏ sót.
+Chọn **Logistic Regression** vì có AUC cao nhất (0,810), đồng thời F1 và accuracy cũng cao nhất. Ba phương pháp chênh nhau không nhiều (AUC 0,78 – 0,81) vì tín hiệu mạnh nhất là *bao lâu rồi khách chưa mua* – luật RFM chỉ dùng recency và tần suất cũng đạt 0,791, precision cao nhất (71,2%). Random Forest có recall cao nhất (bắt được 76% khách rời bỏ thật) – phù hợp nếu cửa hàng chấp nhận gọi nhầm nhiều hơn để không bỏ sót.
 
 Gợi ý cho nhân viên: ưu tiên rà soát nhóm rủi ro cao (793 khách), trước hết là khách có tổng chi tiêu lớn; xem lịch sử mua hàng và tương tác, sau đó liên hệ để hỏi nhu cầu hoặc xử lý vấn đề còn tồn đọng. Nhóm trung bình có thể nhận email nhắc sản phẩm từng mua. Không gửi cùng một nội dung tự động cho mọi khách.
 
@@ -535,28 +545,55 @@ tiếng Việt cho Claude** được làm trực tiếp khi quay video (mục 4.
 
 | Id | Tên biểu đồ | Dataset | Loại | Cấu hình chính |
 |---|---|---|---|---|
-
 | 82 | [Tổng quan] Độ chính xác các mô hình | `ai.model_run` | Bảng | cột Bài toán, Phương pháp, Được chọn, MAPE, AUC, Macro F1, Số mẫu kiểm tra |
 | 83 | [Tổng quan] Doanh thu thực tế và dự báo | `ai.revenue_forecast` | Đường | trục tháng; metric `doanh_thu_thuc_te`, `doanh_thu_du_bao`; lọc `is_selected` |
 | 84 | [Tổng quan] Số khách theo mức rủi ro rời bỏ | `ai.churn_score` | Cột | trục `risk_label`; metric `so_khach`; lọc `is_selected` |
 | 85 | [Tổng quan] Tỉ lệ cảm xúc | `ai.interaction_sentiment` | Tròn | nhóm `label_pred`; metric `so_cau`; lọc `is_selected` |
 
-Đối chiếu bằng `superset_sqllab_execute_query` (trên dữ liệu **giả** của `seed_ai_demo`, chạy lại khi có kết quả thật):
+Đối chiếu bằng `superset_sqllab_execute_query` trên **kết quả mô hình thật** (dự báo, rời bỏ: batch
+`20261017-170211`; cảm xúc: batch `20261014-215419`). Lần đối chiếu đầu (14/10) trên dữ liệu giả `seed_ai_demo` cũng khớp.
 
 | Biểu đồ | Số trên biểu đồ | Truy vấn đối chiếu | Kết quả SQL | Khớp |
 |---|---|---|---|---|
+| 82 | MAPE 20,36 · AUC 0,810 · Macro F1 0,582 (phương pháp được chọn) | `ai.model_run WHERE is_selected` | 20,3593 · 0,8102 · 0,5824 | ✅ |
 | 83 | Doanh thu thực tế 11/2025 ≈ 11,9 tỷ | `SUM(actual)` tháng 2025-11 | 11.857.490.700 | ✅ |
-| 84 | Cao / Trung bình / Thấp | `COUNT(*)` theo `risk_label` | 353 / 926 / 721 | ✅ |
-| 85 | Tiêu cực / Trung lập / Tích cực | `COUNT(*)` theo `label_pred` | 791 / 529 / 1.680 | ✅ |
+| 84 | Cao / Trung bình / Thấp | `COUNT(*)` theo `risk_label` | 793 / 484 / 723 | ✅ |
+| 85 | Tích cực / Trung lập / Tiêu cực | `COUNT(*)` theo `label_pred` | 326 / 149 / 125 | ✅ |
 
-![Độ chính xác các mô hình](th2/bao_cao/img/mcp_tong_quan_do_chinh_xac_demo.png)
-![Doanh thu thực tế và dự báo](th2/bao_cao/img/mcp_tong_quan_doanh_thu_demo.png)
+![Độ chính xác các mô hình](th2/bao_cao/img/mcp_tong_quan_do_chinh_xac.png)
+![Doanh thu thực tế và dự báo](th2/bao_cao/img/mcp_tong_quan_doanh_thu.png)
+![Số khách theo mức rủi ro rời bỏ](th2/bao_cao/img/mcp_tong_quan_rui_ro.png)
+![Tỉ lệ cảm xúc](th2/bao_cao/img/mcp_tong_quan_cam_xuc.png)
 
-*(Ảnh trên dùng dữ liệu giả `seed_ai_demo`. Chụp lại sau khi có kết quả mô hình thật.)*
+*(Ảnh chụp 17/10/2026 trên dữ liệu thật. Ảnh cũ trên dữ liệu giả giữ ở `img/mcp_tong_quan_*_demo.png` để so sánh.)*
 
 ### 4.5. Phần của Hoàng Anh
 
-*(Hoàng Anh bổ sung: các câu lệnh MCP đã dùng để dựng 12 biểu đồ còn lại và ghép dashboard.)*
+*Người viết: Hoàng Anh · ngày 15/10/2026 · Claude Code nối Superset MCP (`.mcp.json`), tài khoản `mcp_agent`.*
+
+Câu lệnh giao việc cho Claude là prompt `docs/th2/prompts/04_hoang_anh_dashboard.md` (bước 2A – danh sách tên biểu đồ,
+dataset, loại, cột). Claude tự chọn công cụ MCP và tham số; các lời gọi thực tế:
+
+| # | Yêu cầu (diễn giải từ prompt, tiếng Việt) | Công cụ MCP | Kết quả |
+|---|---|---|---|
+| 1 | "Đăng nhập Superset" | `superset_auth_authenticate_user` | Successfully authenticated (đọc tài khoản từ `.env` của MCP) |
+| 2 | "Superset có những database và dataset nào?" | `superset_database_list`, `superset_dataset_list` | 1 database (id 2), 4 dataset `ai.*` (id 8 – 11) – chạy 14/10 khi kiểm tra kết nối |
+| 3 | "Tạo Big Number doanh thu dự báo tháng tới, chỉ phương pháp được chọn" | `superset_chart_create` | id 86 – lỗi khi hiển thị (truy vấn con), xem dòng 13 |
+| 4 | "Vẽ đường doanh thu thực tế, dự báo và khoảng tin cậy 95%" | `superset_chart_create` | id 87 |
+| 5 | "So sánh dự báo của 3 phương pháp với thực tế trên 6 tháng kiểm tra" | `superset_chart_create` (`mixed_timeseries`) | id 88 |
+| 6 | "Bảng sai số MAE, RMSE, MAPE các phương pháp dự báo" | `superset_chart_create` | id 89 |
+| 7 | "Cột số khách theo mức rủi ro rời bỏ" | `superset_chart_create` | id 90 |
+| 8 | "Bảng 20 khách rủi ro cao nhất, xác suất dạng %" | `superset_chart_create` | id 91 |
+| 9 | "Rủi ro trung bình theo tháng mua gần nhất" (thay cho *theo nhóm khách* – dữ liệu chỉ có 1 nhóm) | `superset_chart_create` | id 92 |
+| 10 | "Bảng so sánh AUC, precision, recall, F1 các mô hình rời bỏ" | `superset_chart_create` | id 93 |
+| 11 | "Cột chồng cảm xúc theo tháng / theo kênh" | `superset_chart_create` ×2 | id 94, 95 |
+| 12 | "Bảng độ chính xác từ điển và Gemini; bảng chéo nhãn đúng × nhãn dự đoán" | `superset_chart_create` ×2 | id 96, 97 |
+| 13 | "Biểu đồ 86 báo lỗi sub-query, sửa lại" | `superset_chart_update` | dùng metric `(ARRAY_AGG(forecast ORDER BY month))[1]` – hiển thị đúng 6.915.032.190 ₫ |
+| 14 | "Kiểm tra số liệu từng biểu đồ bằng SQL" | `superset_sqllab_execute_query` (2 truy vấn) | 15/15 biểu đồ khớp – bảng ở mục 5.3 |
+
+**Ghép dashboard:** `mcp_agent` chỉ có vai trò Gamma + sql_lab nên **không sửa được dashboard của admin** (đúng mục 4.2).
+Phần gắn 12 biểu đồ mới + 4 biểu đồ Tổng quan vào 4 tab, thêm khối Markdown và 3 bộ lọc chạy bằng
+`python superset/layout_th2.py` (tài khoản admin). Chi tiết dashboard: `docs/th2/bao_cao/06_dashboard.md`.
 
 ### 4.6. Demo trực tiếp khi quay video (Tùng)
 
@@ -570,9 +607,126 @@ Câu lệnh gõ cho Claude (đã nối MCP), quay cả màn hình Claude và Sup
 
 ## 5. Dashboard "SmartCRM – AI Insights" (checklist 03, 04)
 
-> **Chờ Hoàng Anh** gộp `docs/th2/bao_cao/06_dashboard.md` (mục đích từng tab, danh sách biểu đồ, kiểm tra số liệu, ảnh,
-> nhận định kinh doanh) và file xuất dashboard vào `main`. Trong lúc chờ: dashboard 4 tab đang chạy trên máy nhóm trưởng,
-> nhúng tại `/crm/analytics/?tab=ai`; số liệu từng biểu đồ đã được đối chiếu với SQL ở **mục 6.4** (15/15 khớp).
+*Người viết: Hoàng Anh · Dashboard: http://localhost:8090/superset/dashboard/smartcrm-ai-insights/ · Nhúng trong
+SmartCRM: `/crm/analytics/?tab=ai` · Bản xuất: `docs/th2/dashboard/smartcrm_ai_insights_export.zip`*
+
+### 5.1. Mục đích và bố cục
+
+Một dashboard, **4 tab**, đọc kết quả của **lần chạy mô hình mới nhất** qua 4 dataset trên schema `ai`
+(kết nối *SmartCRM TH2 (chỉ đọc)* – tài khoản PostgreSQL `superset_ro` chỉ có quyền `SELECT`).
+
+| Tab | Câu hỏi trả lời | Người dùng |
+|---|---|---|
+| **Tổng quan** | Ba mô hình chính xác đến đâu? Bức tranh chung doanh thu – rủi ro – cảm xúc | Ban quản lý |
+| **Dự báo** | Tháng tới bán được bao nhiêu? Phương pháp nào đáng tin? | Quản lý bán hàng, kho |
+| **Rời bỏ** | Khách nào sắp bỏ, ai cần gọi trước? | Nhân viên chăm sóc khách |
+| **Cảm xúc** | Khách hài lòng hay bực bội, theo tháng, theo kênh? | Chăm sóc khách hàng |
+
+Bộ lọc dashboard (native filter): **Mức rủi ro** (`risk_label`), **Nhóm khách** (`customer_type`) – áp cho biểu đồ trên
+`ai.churn_score`; **Kênh** (`channel`) – áp cho biểu đồ trên `ai.interaction_sentiment`. Đầu tab Tổng quan có khối
+Markdown giải thích nguồn dữ liệu và rằng số liệu lấy từ batch mô hình mới nhất.
+
+### 5.2. Danh sách 16 biểu đồ
+
+Tất cả biểu đồ được tạo **bằng Superset MCP** (công cụ `superset_chart_create`, tài khoản `mcp_agent`). Biểu đồ 86 được
+sửa lại bằng `superset_chart_update` (xem 5.3). Việc gắn biểu đồ vào 4 tab, bộ lọc và khối Markdown cần quyền sửa
+dashboard của admin – tài khoản MCP **cố ý không có quyền này** – nên làm bằng script `superset/layout_th2.py`
+(tìm biểu đồ theo tên, chạy lại được trên máy khác).
+
+| Id | Tên | Dataset | Loại | Cột / metric chính | Lọc |
+|---|---|---|---|---|---|
+| 82 | [Tổng quan] Độ chính xác các mô hình | `ai.model_run` | Bảng | Bài toán, Phương pháp, Được chọn, MAPE, AUC, Macro F1 | – |
+| 83 | [Tổng quan] Doanh thu thực tế và dự báo | `ai.revenue_forecast` | Đường | tháng; thực tế, dự báo | `is_selected` |
+| 84 | [Tổng quan] Số khách theo mức rủi ro rời bỏ | `ai.churn_score` | Cột | `risk_label`; số khách | `is_selected` |
+| 85 | [Tổng quan] Tỉ lệ cảm xúc | `ai.interaction_sentiment` | Tròn (donut) | `label_pred`; số tin nhắn | `is_selected` |
+| 86 | [Dự báo] Doanh thu dự báo tháng tới | `ai.revenue_forecast` | Big Number | `(ARRAY_AGG(forecast ORDER BY month))[1]` | `is_selected`, `kind='future'` |
+| 87 | [Dự báo] Doanh thu thực tế và dự báo 6 tháng | `ai.revenue_forecast` | Đường | tháng; thực tế, dự báo, cận dưới, cận trên 95% | `is_selected` |
+| 88 | [Dự báo] So sánh 3 phương pháp trên 6 tháng kiểm tra | `ai.revenue_forecast` | Đường kết hợp | A: thực tế; B: dự báo tách theo phương pháp | `kind='backtest'` (không lọc `is_selected` ở B) |
+| 89 | [Dự báo] Sai số các phương pháp | `ai.model_run` | Bảng | Phương pháp, MAE, RMSE, MAPE, số tháng, Được chọn | `module='forecast'` |
+| 90 | [Rời bỏ] Số khách theo mức rủi ro | `ai.churn_score` | Cột | `risk_label` (Cao, Trung bình, Thấp); số khách | `is_selected` |
+| 91 | [Rời bỏ] 20 khách rủi ro cao nhất | `ai.churn_score` | Bảng | khách, nhóm, nguồn, nhân viên, đơn gần nhất, tổng chi, xác suất (%) – giảm dần | `is_selected` |
+| 92 | [Rời bỏ] Rủi ro trung bình theo tháng mua gần nhất | `ai.churn_score` | Cột | tháng của `last_order_date`; xác suất TB (%) | `is_selected` |
+| 93 | [Rời bỏ] So sánh mô hình | `ai.model_run` | Bảng | Phương pháp, AUC, Precision, Recall, F1, Accuracy | `module='churn'` |
+| 94 | [Cảm xúc] Cảm xúc theo tháng | `ai.interaction_sentiment` | Cột chồng | tháng × `label_pred` | `is_selected` |
+| 95 | [Cảm xúc] Cảm xúc theo kênh | `ai.interaction_sentiment` | Cột chồng ngang | `channel` × `label_pred` | `is_selected` |
+| 96 | [Cảm xúc] Độ chính xác: từ điển và Gemini | `ai.model_run` | Bảng | Phương pháp, Accuracy, Macro F1, thời gian TB | `module='sentiment'` |
+| 97 | [Cảm xúc] Dự đoán đúng và sai | `ai.interaction_sentiment` | Bảng chéo | hàng: phương pháp × nhãn đúng; cột: nhãn dự đoán | – (so cả 2 phương pháp) |
+
+**Điều chỉnh so với kế hoạch:** biểu đồ *"Rủi ro trung bình theo nhóm khách"* được thay bằng *"…theo tháng mua gần
+nhất"* (id 92) vì trong dữ liệu Online Retail II **mọi khách đều thuộc một nhóm** ("Cá nhân / cửa hàng", nguồn Website,
+chưa phân công) – biểu đồ theo nhóm chỉ có 1 cột, không trả lời được câu hỏi nào. Bộ lọc *Nhóm khách* vẫn giữ để dùng
+khi CRM có khách nhiều nhóm.
+
+### 5.3. Kiểm tra số liệu từng biểu đồ (dữ liệu thật, batch 20261017-170211 / cảm xúc 20261014-215419)
+
+Mỗi biểu đồ: đọc số trên dashboard, chạy câu SQL tương ứng trên view `ai.*` qua MCP (`superset_sqllab_execute_query`,
+tài khoản `mcp_agent`) rồi so.
+
+| Id | Số trên biểu đồ | SQL đối chiếu (rút gọn) | Kết quả SQL | Khớp |
+|---|---|---|---|---|
+| 83 | Thực tế 10/2025 ≈ 12,6 tỷ; 11/2024 ≈ 12,1 tỷ | `actual` theo tháng, `is_selected` | 12.561.500.160 · 12.098.329.980 | ✅ |
+| 84, 90 | Cao 793 · Trung bình 484 · Thấp 723 | `COUNT(*) … GROUP BY risk_label` | 793 · 484 · 723 | ✅ |
+| 85 | Tích cực 326 · Trung lập 149 · Tiêu cực 125 | `COUNT(*) … GROUP BY label_pred` | 326 · 149 · 125 | ✅ |
+| 86 | 6.915.032.190 | `(ARRAY_AGG(forecast ORDER BY month))[1]`, future | 6.915.032.190 (12/2025) | ✅ (sau khi sửa) |
+| 87 | Dự báo 01/2026 ≈ 3,96 tỷ; 05/2026 ≈ 6,80 tỷ | `forecast` tháng 2026-01, 2026-05 | 3.956.294.100 · 6.799.698.510 | ✅ |
+| 88 | 10/2025: Cùng kỳ 11,0 tỷ · SARIMA 7,49 · HW 7,26 | `forecast` backtest 2025-10 theo method | 11.012.675.850 · 7.486.454.897 · 7.255.454.962 | ✅ |
+| 89 | MAPE 20,36 · 29,44 · 29,79 | `ai.model_run` module forecast | 20,3593 · 29,4439 · 29,7908 | ✅ |
+| 91 | Dòng 1: Khách UK-16446, 100,0% | `ORDER BY probability DESC LIMIT 1` | Khách UK-16446, 0,999996 | ✅ |
+| 92 | 01/2024 ≈ 93%; 11/2025 ≈ 21% | `AVG(probability)` theo tháng đơn gần nhất | 0,934 · 0,213 | ✅ |
+| 93 | AUC 0,810 · 0,791 · 0,782 | `ai.model_run` module churn | 0,8102 · 0,7907 · 0,7820 | ✅ |
+| 94 | 11/2025: Tích cực 22 · Trung lập 10 · Tiêu cực 10 | đếm theo tháng × nhãn | 22 · 10 · 10 | ✅ |
+| 95 | Email 244 · Chat 242 · Trực tiếp 60 · Điện thoại 54 | đếm theo `channel` | 244 · 242 · 60 · 54 | ✅ |
+| 96 | Macro F1 0,582 · 0,575 | `ai.model_run` module sentiment | 0,5824 · 0,5745 | ✅ |
+| 97 | Tiêu cực → Tiêu cực: LLM 129 · Từ điển 82 | đếm `label_true = label_pred = 'Tiêu cực'` theo method | 129 · 82 | ✅ |
+
+**Lỗi đã gặp và sửa:** biểu đồ 86 ban đầu lọc `month = (SELECT min(month) …)` → Superset báo *"Custom SQL fields cannot
+contain sub-queries"* (chặn truy vấn con trong bộ lọc tự viết). Sửa qua MCP (`superset_chart_update`): bỏ truy vấn con,
+dùng metric tổng hợp `(ARRAY_AGG(forecast ORDER BY month))[1]` lấy dự báo của tháng sớm nhất.
+
+### 5.4. Ảnh chụp
+
+| Ảnh | File |
+|---|---|
+| Tab Tổng quan (nhúng trong SmartCRM) | `docs/th2/dashboard/img/tab_tong_quan.png` |
+| Tab Dự báo | `docs/th2/dashboard/img/tab_du_bao.png` |
+| Tab Rời bỏ | `docs/th2/dashboard/img/tab_roi_bo.png` |
+| Tab Cảm xúc | `docs/th2/dashboard/img/tab_cam_xuc.png` |
+| Trang chi tiết khách rủi ro cao (khối *Rủi ro rời bỏ*) | `docs/th2/dashboard/img/smartcrm_khach_rui_ro_cao.png` |
+
+![Tab Dự báo](th2/dashboard/img/tab_du_bao.png)
+![Tab Rời bỏ](th2/dashboard/img/tab_roi_bo.png)
+![Tab Cảm xúc](th2/dashboard/img/tab_cam_xuc.png)
+
+### 5.5. Nhận định kinh doanh rút ra từ dashboard
+
+1. **Doanh thu có mùa vụ cuối năm rất rõ** – biểu đồ 87: tháng 10 – 11 đạt 11,9 – 12,6 tỷ, gấp ≈ 3 lần tháng 1 – 2
+   (≈ 4 tỷ). Dự báo 01/2026 chỉ ≈ 3,96 tỷ → nên giảm nhập hàng sau Tết dương lịch, dồn khuyến mãi vào tháng 1 – 2.
+2. **Mô hình đơn giản thắng** – biểu đồ 88, 89: "cùng kỳ năm trước" bắt đúng đỉnh 10 – 11/2025, Holt-Winters và SARIMA
+   dự báo gần như phẳng (≈ 7,3 – 7,5 tỷ) vì chỉ có 18 tháng để học. Cần thêm ≥ 1 năm dữ liệu trước khi tin mô hình phức tạp.
+3. **793 khách (≈ 40%) rủi ro rời bỏ cao** – biểu đồ 84/90; biểu đồ 92 cho thấy khách có đơn gần nhất từ đầu 2024 có
+   rủi ro TB ≈ 93%, khách mua tháng 11/2025 chỉ ≈ 21% → **thời gian từ lần mua cuối là tín hiệu mạnh nhất**.
+   Bảng 91 là danh sách gọi chăm sóc, ưu tiên khách tổng chi lớn (ví dụ Khách UK-16446 chi 5,56 tỷ).
+4. **Email và Chat chiếm 81% phản hồi** – biểu đồ 95 (244 + 242 / 600 câu), nên ưu tiên tự động phân loại cảm xúc cho
+   hộp thư email/chat trước. Tỉ lệ tiêu cực: Điện thoại 24,1% · Email 23,0% · Trực tiếp 21,7% · Chat 17,8% (lọc theo
+   *Kênh* trên dashboard). *Lưu ý: kênh được gán nhân tạo khi nạp dữ liệu (mục 2.3), chênh lệch giữa các kênh chỉ minh
+   hoạ cách đọc, chưa phải kết luận kinh doanh.*
+5. **LLM bắt phản hồi tiêu cực tốt hơn từ điển** – biểu đồ 97: LLM nhận đúng 129/144 câu tiêu cực (89,6%), từ điển chỉ
+   82/144 (56,9%), dù Macro F1 tổng thể từ điển nhỉnh hơn (0,582 so với 0,575, biểu đồ 96). Nếu mục tiêu là *không bỏ sót
+   khách đang bực bội*, nên dùng LLM cho bước cảnh báo.
+
+### 5.6. Xuất và nhập lại dashboard
+
+- File xuất: `docs/th2/dashboard/smartcrm_ai_insights_export.zip` (Superset → Dashboards → Export; 16 biểu đồ,
+  4 dataset, kết nối – mật khẩu đã được Superset che `XXXXXXXXXX`).
+- Nhập trên máy khác: Superset → Dashboards → Import → chọn file ZIP → nhập mật khẩu `superset_ro` khi được hỏi;
+  hoặc tạo lại biểu đồ qua MCP rồi chạy `python superset/layout_th2.py`.
+
+### 5.7. Góp ý tài liệu cài đặt
+
+| Bước | Vấn đề | Đề xuất |
+|---|---|---|
+| Superset MCP | Mỗi phiên Claude mới, công cụ báo *Not authenticated* cho tới khi gọi `superset_auth_authenticate_user` | Ghi vào `CAI_DAT_MCP.md`: câu lệnh đầu tiên luôn là "đăng nhập Superset" |
+| Bố cục dashboard | `mcp_agent` không sửa được dashboard của admin (đúng thiết kế) | Đã thêm bước `python superset/layout_th2.py` vào `CAI_DAT.md` |
 
 ## 6. Kiểm thử và đối chiếu số liệu (checklist 05)
 
@@ -584,7 +738,7 @@ rồi so với kết quả mô hình đã lưu; (3) đối chiếu từng biểu
 
 ### 6.1. Test tự động
 
-`python manage.py test` – **161 test, tất cả qua** (17/10/2026).
+`python manage.py test` – **164 test, tất cả qua** (17/10/2026).
 
 | File | Kiểm tra gì |
 |---|---|
@@ -609,7 +763,7 @@ truy vấn riêng** (không dùng `insights.data.monthly_revenue_series` – ch�
 | D. Cảm xúc | Nhãn hợp lệ · accuracy và Macro F1 tính lại từ `SentimentResult` ↔ `SentimentLabel` khớp (≤ 0,001) trên 600 câu | – | – | 4/4 ✅ |
 | E. View `ai.*` | Số phương pháp trong `ai.model_run` và số dòng `ai.revenue_forecast` (90) / `ai.churn_score` (6.000) / `ai.interaction_sentiment` (1.200) khớp ORM | 2/2 ✅ | 2/2 ✅ | 2/2 ✅ |
 
-**Kết quả: 40/40 mục KHỚP** (dự báo + rời bỏ: batch `20261017-072049`; cảm xúc: batch `20261014-215419`).
+**Kết quả: 40/40 mục KHỚP** (dự báo + rời bỏ: batch `20261017-170211`; cảm xúc: batch `20261014-215419`).
 Phương pháp được chọn: dự báo – Cùng kỳ năm trước (MAPE 20,36%); rời bỏ – Logistic Regression (AUC 0,810; Cao 793 ·
 Trung bình 484 · Thấp 723); cảm xúc – Từ điển từ khoá (Macro F1 0,582).
 
@@ -622,8 +776,8 @@ Trung bình 484 · Thấp 723); cảm xúc – Từ điển từ khoá (Macro F1
 | 3 | Đọc `params` | Holt-Winters ghi `additive_seasonal` nhưng thực tế chạy không mùa vụ; MAPE = 0 khi không có tháng khác 0 | Ngọc Anh | ✅ Đã sửa |
 | 4 | `python manage.py test` | Test `test_features_stop_before_cutoff…` của module rời bỏ FAIL (kỳ vọng nhãn sai) | Thái Anh | ✅ Đã sửa |
 | 5 | Đối chiếu ranh giới | Đơn đúng 0 giờ ngày cutoff không thuộc đặc trưng lẫn nhãn; trang khách có thể hiện điểm batch `demo` | Thái Anh | ✅ Đã sửa |
-| 6 | Kiểm tra đủ khoá (mục A) | Chế độ **mô phỏng** của module cảm xúc (khi chưa có API key) không ghi `avg_latency_ms` – sai hợp đồng mục 5. Dữ liệu thật hiện tại không bị ảnh hưởng | Tùng | ⏳ Báo Tùng sửa `sentiment.py` (ngoài phạm vi kiểm thử) |
-| 7 | Bảng đối chiếu `05_mcp.md` mục 4.4 | Vẫn ghi số của dữ liệu giả (353 / 926 / 721…) | Tùng | ⏳ Cập nhật bằng số ở mục 6.4 |
+| 6 | Kiểm tra đủ khoá (mục A) | Chế độ **mô phỏng** của module cảm xúc (khi chưa có API key) không ghi `avg_latency_ms` – sai hợp đồng mục 5. Dữ liệu thật hiện tại không bị ảnh hưởng | Tùng | ✅ Đã sửa (`sentiment.py` ghi `avg_latency_ms = 0`, thêm kiểm tra trong test) |
+| 7 | Bảng đối chiếu `05_mcp.md` mục 4.4 | Vẫn ghi số của dữ liệu giả (353 / 926 / 721…) | Tùng | ✅ Đã cập nhật số thật và chụp lại 4 ảnh |
 
 Nội dung đã báo: *Ngọc Anh – SARIMA backtest phân kỳ, metrics tính trên số chưa làm tròn*; *Thái Anh – test nhãn FAIL,
 báo cáo chưa có số*; *Tùng – chế độ mô phỏng cảm xúc thiếu `avg_latency_ms`, mục 4.4 còn số demo*.
@@ -644,7 +798,7 @@ Mỗi biểu đồ: đọc số trên dashboard, chạy câu SQL tương ứng t
 | [Dự báo] Sai số các phương pháp | MAPE 20,36 · 29,44 · 29,79 | `ai.model_run` module forecast | 20,3593 · 29,4439 · 29,7908 | ✅ |
 | [Rời bỏ] 20 khách rủi ro cao nhất | Dòng 1: Khách UK-16446, 100,0% | `ORDER BY probability DESC LIMIT 1` | Khách UK-16446, 0,999996 | ✅ |
 | [Rời bỏ] Rủi ro trung bình theo tháng mua gần nhất | 01/2024 ≈ 93%; 11/2025 ≈ 21% | `AVG(probability)` theo tháng đơn gần nhất | 0,934 · 0,213 | ✅ |
-| [Rời bỏ] So sánh mô hình | AUC 0,810 · 0,782 · 0,768 | `ai.model_run` module churn | 0,8102 · 0,7820 · 0,7677 | ✅ |
+| [Rời bỏ] So sánh mô hình | AUC 0,810 · 0,791 · 0,782 | `ai.model_run` module churn | 0,8102 · 0,7907 · 0,7820 | ✅ |
 | [Cảm xúc] Cảm xúc theo tháng | 11/2025: Tích cực 22 · Trung lập 10 · Tiêu cực 10 | đếm theo tháng × nhãn | 22 · 10 · 10 | ✅ |
 | [Cảm xúc] Cảm xúc theo kênh | Email 244 · Chat 242 · Trực tiếp 60 · Điện thoại 54 | đếm theo `channel` | 244 · 242 · 60 · 54 | ✅ |
 | [Cảm xúc] Độ chính xác: từ điển và Gemini | Macro F1 0,582 · 0,575 | `ai.model_run` module sentiment | 0,5824 · 0,5745 | ✅ |
@@ -678,7 +832,7 @@ Làm lại các bước của `docs/th2/CAI_DAT.md` trên máy nhóm (dữ liệ
 ### 6.7. Cách chạy lại toàn bộ kiểm tra
 
 ```bash
-python manage.py test                       # 161 test, OK ngày 17/10/2026
+python manage.py test                       # 164 test, OK ngày 17/10/2026
 python manage.py run_ai_pipeline            # (nếu cần batch mới)
 python manage.py verify_ai_results          # 40 mục, thoát mã 1 nếu có mục LỆCH
 python manage.py verify_superset_data       # đối chiếu TH1 (view analytics)
@@ -707,7 +861,17 @@ khác nhau**, cộng thêm 2 tính năng LLM có sẵn trong SmartCRM:
 | | *Có sẵn trong SmartCRM:* báo cáo nhận định | Tóm tắt tình hình kinh doanh | Dùng tại trang Báo cáo AI |
 
 Mỗi bài toán có **một phương pháp đơn giản làm mốc** và đánh giá trên **cùng tập kiểm tra**, nên chênh lệch giữa các phương
-pháp là so sánh công bằng (mục 3).
+pháp là so sánh công bằng (mục 3). Kết quả so sánh thực tế (dự báo, rời bỏ: batch `20261017-170211`; cảm xúc:
+`20261014-215419`):
+
+| Bài toán | Phương pháp được chọn | Chỉ số | Nhận xét |
+|---|---|---|---|
+| Dự báo doanh thu | **Cùng kỳ năm trước** (luật) | MAPE 20,4% (SARIMA 29,4%, Holt-Winters 29,8%) | Chuỗi 24 tháng quá ngắn để mô hình thống kê học mùa vụ – mốc đơn giản thắng |
+| Khách rời bỏ | **Logistic Regression** (học máy) | AUC 0,810 (Luật RFM 0,791, Random Forest 0,782) | Học máy hơn luật RFM không nhiều – tín hiệu chính là thời gian từ lần mua cuối |
+| Cảm xúc | **Từ điển từ khoá** (luật) | Macro F1 0,582 (LLM 0,575) | LLM bắt câu tiêu cực tốt hơn hẳn (129/144 = 89,6% so với 82/144 = 56,9%) – cơ sở của đề xuất #6 |
+
+Bài học chung: **phương pháp phức tạp chỉ đáng dùng khi thắng được mốc đơn giản trên cùng tập kiểm tra** – nhóm giữ
+nguyên nguyên tắc chọn theo chỉ số, kể cả khi mốc đơn giản thắng.
 
 ### 7.2. Đề xuất mở rộng (chưa triển khai)
 
@@ -745,7 +909,8 @@ python superset/bootstrap_th2.py      # kết nối chỉ đọc, 4 dataset ai.*
 # 4. Mô hình AI + kiểm tra
 python manage.py run_ai_pipeline
 python manage.py verify_ai_results
-# 5. Biểu đồ: tạo qua Superset MCP theo docs/th2/CAI_DAT_MCP.md và mục 4–5 của báo cáo
+# 5. Dashboard: Import docs/th2/dashboard/smartcrm_ai_insights_export.zip (hoặc tạo biểu đồ qua MCP), rồi ghép tab
+python superset/layout_th2.py
 # 6. Web
 python manage.py runserver            # http://127.0.0.1:8000/crm/analytics/?tab=ai
 ```
@@ -776,15 +941,13 @@ dùng MCP chính thức, tách tài khoản ứng dụng PostgreSQL và bật SS
 |---|---|---|---|---|
 | 01 | Kiến trúc dữ liệu từ hệ thống CRM về CSDL trung tâm | CSDL `smartcrm_th2` (PostgreSQL 16) nạp dữ liệu thật; app `insights` lưu kết quả AI; schema `analytics` + `ai` (view chỉ đọc); tài khoản `superset_ro`; sơ đồ luồng, bảng phân quyền | Mục 2; `insights/models.py`; `insights/management/commands/import_th2_data.py`; `sql/superset/03_ai_views.sql`; `docs/th2/HOP_DONG_DU_LIEU.md` | Tùng |
 | 02 | Xây dựng mô hình AI phân tích dữ liệu | 3 bài toán × 2–3 phương pháp, chạy bằng `run_ai_pipeline`, chọn phương pháp tốt nhất tự động, lưu `ModelRun` + kết quả từng dòng | Mục 3; `insights/pipeline/forecast.py`, `churn.py`, `sentiment.py`; Admin → *Kết quả AI* | Ngọc Anh, Thái Anh, Tùng |
-| 03 | Kết nối Superset MCP, AI tạo biểu đồ | `aptro/superset-mcp` nối Claude Code; tài khoản `mcp_agent` quyền hạn chế (chặn DML, chặn CSDL TH1); biểu đồ tạo qua `superset_chart_create`; đối chiếu qua `superset_sqllab_execute_query` | Mục 4 (4.5 *chờ Hoàng Anh*); `docs/th2/CAI_DAT_MCP.md`; `th2/bao_cao/img/mcp_*.png` | Tùng, Hoàng Anh |
-| 04 | Đưa kết quả AI lên dashboard | Dashboard "SmartCRM – AI Insights" 4 tab nhúng trong SmartCRM; khối *Rủi ro rời bỏ* trên trang khách | Mục 5 (*chờ Hoàng Anh*), mục 6.4, 6.5; `crm/templates/crm/_churn_risk.html` | Hoàng Anh, Thái Anh, Tùng |
-| 05 | Báo cáo kỹ thuật và đánh giá mô hình | Mỗi mô hình viết theo khung 8 phần (bài toán, dữ liệu, phương pháp, đánh giá, kết quả có mã batch, kết luận, hạn chế, chạy lại); 161 test; `verify_ai_results` 40/40; đối chiếu 15/15 biểu đồ | Mục 3, 6; file này; `insights/tests/`; `insights/management/commands/verify_ai_results.py` | Hoàng Hưng + cả nhóm |
+| 03 | Kết nối Superset MCP, AI tạo biểu đồ | `aptro/superset-mcp` nối Claude Code; tài khoản `mcp_agent` quyền hạn chế (chặn DML, chặn CSDL TH1); 16 biểu đồ tạo/sửa qua `superset_chart_create`/`update`; đối chiếu qua `superset_sqllab_execute_query` | Mục 4; `docs/th2/CAI_DAT_MCP.md`; `th2/bao_cao/img/mcp_*.png` | Tùng, Hoàng Anh |
+| 04 | Đưa kết quả AI lên dashboard | Dashboard "SmartCRM – AI Insights" 4 tab, 16 biểu đồ, 3 bộ lọc, nhúng trong SmartCRM; khối *Rủi ro rời bỏ* trên trang khách | Mục 5, 6.4, 6.5; `superset/layout_th2.py`; `docs/th2/dashboard/smartcrm_ai_insights_export.zip`; `th2/dashboard/img/tab_*.png`; `crm/templates/crm/_churn_risk.html` | Hoàng Anh, Thái Anh, Tùng |
+| 05 | Báo cáo kỹ thuật và đánh giá mô hình | Mỗi mô hình viết theo khung 8 phần (bài toán, dữ liệu, phương pháp, đánh giá, kết quả có mã batch, kết luận, hạn chế, chạy lại); 164 test; `verify_ai_results` 40/40; đối chiếu 15/15 biểu đồ | Mục 3, 6; file này; `insights/tests/`; `insights/management/commands/verify_ai_results.py` | Hoàng Hưng + cả nhóm |
 | 06 | Đề xuất các mô hình AI khác (cộng điểm) | 8 phương pháp thuộc 4 họ đã triển khai và so sánh; 7 đề xuất mở rộng có mục đích, dữ liệu, cách đánh giá, độ khó, thứ tự ưu tiên | Mục 7 | Tùng (+ Ngọc Anh, Thái Anh) |
 
-## Phụ lục B. Các mục còn chờ
+## Phụ lục B. Trạng thái hoàn thành
 
-| Mục | Còn thiếu | Người làm |
-|---|---|---|
-| 4.5, 5 | Câu lệnh MCP dựng 12 biểu đồ 3 tab; `06_dashboard.md`; file xuất dashboard; ảnh 4 tab | Hoàng Anh |
-| 4.4 | Thay số dữ liệu giả bằng số thật (mục 6.4); chụp lại ảnh tab Tổng quan | Tùng |
-| 3.3 | Chế độ mô phỏng của module cảm xúc ghi thiếu `avg_latency_ms` (mục 6.3 #6) | Tùng |
+Cả 6 mục checklist đã có sản phẩm và bằng chứng trong repo (Phụ lục A); không còn mục nào chờ. Kiểm tra cuối:
+`python manage.py test` – 164 test OK; `python manage.py verify_ai_results` – 40/40 mục KHỚP; dashboard 4 tab hiển thị
+không lỗi, 15/15 biểu đồ khớp SQL. Việc còn lại ngoài repo: quay video theo `docs/th2/KICH_BAN_VIDEO_TH2.md`.

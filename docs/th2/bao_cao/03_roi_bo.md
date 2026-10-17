@@ -1,6 +1,6 @@
 # Dự đoán khách hàng rời bỏ
 
-*Người viết: Thái Anh · Code: `insights/pipeline/churn.py`, hiển thị: `crm/templates/crm/_churn_risk.html`, `insights/display.py` · Batch: **20261017-072049***
+*Người viết: Thái Anh · Code: `insights/pipeline/churn.py`, hiển thị: `crm/templates/crm/_churn_risk.html`, `insights/display.py` · Batch: **20261017-170211***
 
 ## 1. Bài toán và câu hỏi kinh doanh
 
@@ -14,7 +14,7 @@ Cutoff bằng ngày tham chiếu trừ 180 ngày. Tập huấn luyện gồm kh�
 
 ## 3. Phương pháp
 
-- **Luật RFM (`rfm_rule`):** dùng thứ hạng phần trăm của `recency_days`; khách càng lâu chưa mua thì điểm càng cao. Đây là quy tắc không huấn luyện mô hình.
+- **Luật RFM (`rfm_rule`):** điểm = 0,7 × hạng phần trăm của `recency_days` (càng lâu chưa mua càng cao) + 0,3 × hạng phần trăm của tần suất mua **thấp**. Hạng tính so với tập huấn luyện, nên điểm của một khách không phụ thuộc vào việc chấm cùng những ai. Không học máy – trọng số đặt theo kinh nghiệm bán hàng.
 - **Logistic Regression – hồi quy logistic (`logistic_regression`):** chuẩn hoá đặc trưng bằng `StandardScaler`, dùng `class_weight="balanced"` và `max_iter=1000`.
 - **Random Forest – rừng ngẫu nhiên (`random_forest`):** dùng 300 cây, `class_weight="balanced"` và `random_state=42`. Năm đặc trưng quan trọng nhất sẽ được ghi trong kết quả batch.
 
@@ -26,12 +26,12 @@ Dữ liệu được chia ngẫu nhiên thành 70% huấn luyện và 30% kiểm
 
 ## 5. Kết quả
 
-Mã batch: **`20261017-072049`** (số lấy từ `ai.model_run`). Tập huấn luyện 1.183 khách, tập kiểm tra 507 khách.
+Mã batch: **`20261017-170211`** (số lấy từ `ai.model_run`). Tập huấn luyện 1.183 khách, tập kiểm tra 507 khách.
 
 | Phương pháp | AUC | Precision | Recall | F1 | Accuracy | n_train | n_test |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| Luật RFM | 0,768 | 66,9% | 70,3% | 0,686 | 69,2% | 1.183 | 507 |
-| **Logistic Regression ★** | **0,810** | **69,7%** | 75,2% | **0,724** | **72,6%** | 1.183 | 507 |
+| Luật RFM | 0,791 | **71,2%** | 69,4% | 0,703 | 72,0% | 1.183 | 507 |
+| **Logistic Regression ★** | **0,810** | 69,7% | 75,2% | **0,724** | **72,6%** | 1.183 | 507 |
 | Random Forest | 0,782 | 67,3% | **76,4%** | 0,716 | 71,0% | 1.183 | 507 |
 
 - **Tỷ lệ rời bỏ của tập:** 47,73% (`churn_rate` trên toàn bộ 1.690 khách có nhãn).
@@ -48,7 +48,7 @@ Mã batch: **`20261017-072049`** (số lấy từ `ai.model_run`). Tập huấn 
 
 ## 6. Kết luận
 
-Chọn **Logistic Regression** vì có AUC cao nhất (0,810), đồng thời F1 và accuracy cũng cao nhất. Ba phương pháp chênh nhau không nhiều (AUC 0,77 – 0,81) vì tín hiệu mạnh nhất là *bao lâu rồi khách chưa mua* – luật RFM chỉ dựa vào recency cũng đạt 0,768. Random Forest có recall cao nhất (bắt được 76% khách rời bỏ thật) – phù hợp nếu cửa hàng chấp nhận gọi nhầm nhiều hơn để không bỏ sót.
+Chọn **Logistic Regression** vì có AUC cao nhất (0,810), đồng thời F1 và accuracy cũng cao nhất. Ba phương pháp chênh nhau không nhiều (AUC 0,78 – 0,81) vì tín hiệu mạnh nhất là *bao lâu rồi khách chưa mua* – luật RFM chỉ dùng recency và tần suất cũng đạt 0,791, precision cao nhất (71,2%). Random Forest có recall cao nhất (bắt được 76% khách rời bỏ thật) – phù hợp nếu cửa hàng chấp nhận gọi nhầm nhiều hơn để không bỏ sót.
 
 Gợi ý cho nhân viên: ưu tiên rà soát nhóm rủi ro cao (793 khách), trước hết là khách có tổng chi tiêu lớn; xem lịch sử mua hàng và tương tác, sau đó liên hệ để hỏi nhu cầu hoặc xử lý vấn đề còn tồn đọng. Nhóm trung bình có thể nhận email nhắc sản phẩm từng mua. Không gửi cùng một nội dung tự động cho mọi khách.
 

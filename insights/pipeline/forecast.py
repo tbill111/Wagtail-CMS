@@ -8,7 +8,7 @@ import pandas as pd
 from statsmodels.tsa.holtwinters import ExponentialSmoothing
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 
-from insights.conf import BACKTEST_MONTHS, FORECAST_HORIZON
+from insights.conf import BACKTEST_MONTHS, FORECAST_HORIZON, RANDOM_STATE
 from insights.data import monthly_revenue_series
 from insights.models import ModelRun, RevenueForecast
 
@@ -16,6 +16,7 @@ from .base import MethodResult, run_method, select_best
 
 METHODS = ("seasonal_naive", "holt_winters", "sarima")
 Z_95 = 1.96
+SIMULATIONS = 1000  # số lần mô phỏng để lấy khoảng tin cậy Holt-Winters
 # Dự báo vượt quá MAX_GROWTH lần doanh thu tháng lớn nhất trong lịch sử → coi là mô hình phân kỳ
 MAX_GROWTH = 3
 
@@ -86,12 +87,23 @@ def _holt_winters(series, horizon, stage):
         predictions = np.asarray(model.forecast(horizon), dtype=float)
         fitted = np.asarray(model.fittedvalues, dtype=float)
         method = "additive_nonseasonal"
-    forecast, lower, upper = _interval(predictions, _error_std(series, fitted))
+    try:
+        # Khoảng tin cậy 95% bằng mô phỏng: rộng dần theo số bước dự báo, sát với mô hình hơn ±1,96σ cố định
+        sims = np.asarray(model.simulate(horizon, repetitions=SIMULATIONS, error="add", random_state=RANDOM_STATE))
+        lower, upper = np.percentile(sims.reshape(horizon, -1), [2.5, 97.5], axis=1)
+        forecast = np.maximum(predictions, 0)
+        lower = np.minimum(np.maximum(lower, 0), forecast)
+        upper = np.maximum(upper, forecast)
+        confidence = f"mô phỏng {SIMULATIONS} lần (simulate), phân vị 2,5% – 97,5%"
+    except Exception as exc:  # noqa: BLE001 – mô phỏng lỗi thì quay về cách cũ, ghi lại lý do
+        notes.append(f"Holt-Winters ({stage}): không mô phỏng được khoảng tin cậy ({exc}); dùng ±1,96σ sai số fitted.")
+        forecast, lower, upper = _interval(predictions, _error_std(series, fitted))
+        confidence = "forecast ± 1.96 × độ lệch sai số fitted"
     return Prediction(
         forecast, lower, upper,
         {"model": method, "trend": "add", "seasonal": "add" if method == "additive_seasonal" else None,
          "seasonal_periods": 12 if method == "additive_seasonal" else None,
-         "confidence": "forecast ± 1.96 × độ lệch sai số fitted"},
+         "confidence": confidence},
         notes,
     )
 

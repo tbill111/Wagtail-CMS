@@ -3,6 +3,7 @@
 import logging
 from datetime import datetime, time, timedelta
 
+import numpy as np
 import pandas as pd
 from django.db.models import Count, DecimalField, ExpressionWrapper, F, Max, Min, Q, Sum
 from django.utils import timezone
@@ -169,17 +170,37 @@ def _new_model(method):
     raise ValueError(f"Không có bộ phân loại cho phương pháp {method}.")
 
 
-def _rule_scores(frame):
-    # Percentile rank of recency: the longer since the last purchase, the higher the risk.
-    return frame["recency_days"].rank(method="average", pct=True).to_numpy()
+class RFMRule:
+    """Luật RFM không học máy: điểm = 0,7 × hạng % recency (lâu không mua → cao) + 0,3 × hạng % tần suất thấp.
+
+    Hạng phần trăm tính so với tập tham chiếu lúc ``fit`` (tập huấn luyện), nên điểm của một khách không phụ thuộc
+    vào việc khách đó được chấm cùng những ai – giống cách một mô hình học máy được huấn luyện rồi mới chấm.
+    """
+
+    WEIGHTS = {"recency_days": 0.7, "frequency": 0.3}
+
+    def fit(self, frame):
+        self.reference_ = {column: np.sort(frame[column].to_numpy(dtype=float)) for column in self.WEIGHTS}
+        return self
+
+    def _rank(self, column, values):
+        reference = self.reference_[column]
+        return np.searchsorted(reference, np.asarray(values, dtype=float), side="right") / len(reference)
+
+    def score(self, frame):
+        recency = self._rank("recency_days", frame["recency_days"])
+        low_frequency = 1 - self._rank("frequency", frame["frequency"])
+        return np.clip(self.WEIGHTS["recency_days"] * recency + self.WEIGHTS["frequency"] * low_frequency, 0, 1)
 
 
 def _make_method(method, train_x, test_x, y_train, y_test, all_x, scoring_x, batch_reference):
     def save_results(run):
         if method == "rfm_rule":
-            test_probabilities = _rule_scores(test_x)
-            all_probabilities = _rule_scores(scoring_x)
-            params = {"formula": "percentile_rank(recency_days); older last purchase => higher score"}
+            # Như các mô hình học máy: "fit" trên tập huấn luyện để đánh giá, "fit" lại trên toàn bộ tập có nhãn để chấm
+            test_probabilities = RFMRule().fit(train_x).score(test_x)
+            all_probabilities = RFMRule().fit(all_x).score(scoring_x)
+            params = {"formula": "0,7·hạng%(recency_days) + 0,3·(1 − hạng%(frequency)); hạng tính theo tập huấn luyện",
+                      "weights": RFMRule.WEIGHTS}
         else:
             model = _new_model(method)
             model.fit(train_x, y_train)

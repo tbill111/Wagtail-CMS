@@ -45,7 +45,9 @@ SUPERSET_PASSWORD=<mật khẩu của mcp_agent>
 ## 3. Nối MCP với Claude
 
 ### Claude Code (VS Code / terminal)
-Tạo file `.mcp.json` ở **thư mục bạn mở Claude Code** (thư mục cha của `smartcrm`), thay đường dẫn cho đúng máy mình:
+Tạo file `.mcp.json` ở **đúng thư mục bạn mở Claude Code** – nhóm mở tại `smartcrm/` thì đặt ở `smartcrm/.mcp.json`
+(Claude Code chỉ đọc `.mcp.json` của thư mục đang mở). File này chứa đường dẫn riêng của máy nên **không commit**:
+thêm dòng `.mcp.json` vào `.git/info/exclude`. Thay đường dẫn cho đúng máy mình:
 
 ```json
 {
@@ -66,6 +68,9 @@ rồi khởi động lại Claude Desktop.
 ## 4. Kiểm tra
 
 Hỏi Claude lần lượt:
+> **Đầu mỗi phiên Claude mới**, công cụ MCP báo *Not authenticated* cho tới khi đăng nhập – luôn bắt đầu bằng câu
+> *"Đăng nhập Superset"* (Claude gọi `superset_auth_authenticate_user`, tự đọc tài khoản trong `tools/superset-mcp/.env`).
+
 1. *"Đăng nhập Superset rồi liệt kê các database và dataset bạn thấy."*
    → **Đúng khi:** chỉ thấy "SmartCRM TH2 (chỉ đọc)" và 4 dataset `ai.model_run`, `ai.revenue_forecast`, `ai.churn_score`,
    `ai.interaction_sentiment`.
@@ -78,5 +83,6 @@ Hỏi Claude lần lượt:
 |---|---|
 | `401 Not authorized` khi đăng nhập | Sai mật khẩu trong `tools/superset-mcp/.env`, hoặc sai cổng `SUPERSET_BASE_URL` |
 | Thấy được database nhưng không thấy dataset | Vai trò `TH2_MCP` chưa có quyền `database access` đúng kết nối |
-| Claude không thấy công cụ `superset_*` | Kiểm tra đường dẫn trong `.mcp.json`, khởi động lại Claude, gõ `/mcp` |
+| Claude không thấy công cụ `superset_*` | `.mcp.json` phải nằm ở thư mục mở Claude Code; kiểm tra đường dẫn, khởi động lại Claude, gõ `/mcp` |
+| Công cụ báo `Not authenticated` | Gọi "Đăng nhập Superset" trước (mỗi phiên mới) |
 | `superset_user_get_current` báo 401 | Bình thường – vai trò Gamma không có quyền xem hồ sơ, không ảnh hưởng các công cụ khác |

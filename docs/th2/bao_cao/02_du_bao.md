@@ -30,7 +30,9 @@ hoàn thành toàn bộ dữ liệu trước khi loại tháng chưa trọn vẹ
   `1,96 × độ lệch chuẩn sai số` trên phần huấn luyện.
 - **Holt-Winters:** dùng `statsmodels.ExponentialSmoothing` với xu hướng cộng,
   mùa vụ cộng, chu kỳ 12 tháng và `initialization_method="estimated"`. Khoảng
-  tin cậy dùng độ lệch sai số giữa fitted values và dữ liệu huấn luyện. Mô hình
+  tin cậy 95% lấy bằng **mô phỏng 1.000 lần** (`simulate`, phân vị 2,5% – 97,5%) nên
+  **rộng dần theo số tháng dự báo** – phản ánh đúng việc càng dự báo xa càng kém chắc
+  chắn (nếu mô phỏng lỗi thì dùng ±1,96 × độ lệch sai số, ghi trong `notes`). Mô hình
   luôn thử bản có mùa vụ trước; khi backtest chỉ có 18 tháng (chưa đủ 2 chu kỳ),
   statsmodels báo không tính được hệ số mùa vụ ban đầu nên dùng bản không mùa vụ
   – ghi trong `notes` và `params.model` của lần chạy. Dự báo 6 tháng tới (24 tháng
@@ -53,7 +55,7 @@ bỏ qua khi tính MAPE.
 
 ## 5. Kết quả
 
-Mã batch: `20261017-072049`. Chỉ số tính trên dự báo đã làm tròn đến đồng – đúng giá
+Mã batch: `20261017-170211`. Chỉ số tính trên dự báo đã làm tròn đến đồng – đúng giá
 trị lưu trong `RevenueForecast`, nên tính lại được từ các dòng `backtest`.
 
 | Phương pháp | MAE (VNĐ) | RMSE (VNĐ) | MAPE (%) | Huấn luyện | Kiểm tra | Được chọn |

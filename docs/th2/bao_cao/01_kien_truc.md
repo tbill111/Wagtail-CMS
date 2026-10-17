@@ -138,3 +138,11 @@ kinh doanh** (dashboard của TH1). Dashboard được nhúng bằng Superset Em
 cho từng nhân viên đã đăng nhập; danh sách tab đặt trong `SUPERSET_DASHBOARDS` (settings).
 
 ![Trang Phân tích – tab AI Insights](img/smartcrm_ai_insights_nhung.png)
+
+Ngoài dashboard, kết quả AI còn đi thẳng vào thao tác hằng ngày của nhân viên:
+- Trang **chi tiết khách** (`/crm/customers/<id>/`) có dòng **Rủi ro rời bỏ** – ví dụ "100% – Cao · Mô hình Logistic
+  Regression · cập nhật 17/10/2026" – đọc từ `ChurnScore` của phương pháp được chọn trong batch rời bỏ mới nhất, ưu tiên
+  batch thật hơn batch `demo` (`insights/display.py`, 1 truy vấn). Khách chưa có điểm hiện "Chưa có dự đoán".
+- Admin có menu **Kết quả AI** (chỉ xem) cho từng lần chạy mô hình: chỉ số, tham số, ghi chú.
+
+![Dòng Rủi ro rời bỏ trên trang khách](img/smartcrm_khach_rui_ro_cao.png)

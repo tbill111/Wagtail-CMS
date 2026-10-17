@@ -8,7 +8,7 @@ rồi so với kết quả mô hình đã lưu; (3) đối chiếu từng biểu
 
 ## 6.1. Test tự động
 
-`python manage.py test` – **161 test, tất cả qua** (17/10/2026).
+`python manage.py test` – **164 test, tất cả qua** (17/10/2026).
 
 | File | Kiểm tra gì |
 |---|---|
@@ -33,7 +33,7 @@ truy vấn riêng** (không dùng `insights.data.monthly_revenue_series` – ch�
 | D. Cảm xúc | Nhãn hợp lệ · accuracy và Macro F1 tính lại từ `SentimentResult` ↔ `SentimentLabel` khớp (≤ 0,001) trên 600 câu | – | – | 4/4 ✅ |
 | E. View `ai.*` | Số phương pháp trong `ai.model_run` và số dòng `ai.revenue_forecast` (90) / `ai.churn_score` (6.000) / `ai.interaction_sentiment` (1.200) khớp ORM | 2/2 ✅ | 2/2 ✅ | 2/2 ✅ |
 
-**Kết quả: 40/40 mục KHỚP** (dự báo + rời bỏ: batch `20261017-072049`; cảm xúc: batch `20261014-215419`).
+**Kết quả: 40/40 mục KHỚP** (dự báo + rời bỏ: batch `20261017-170211`; cảm xúc: batch `20261014-215419`).
 Phương pháp được chọn: dự báo – Cùng kỳ năm trước (MAPE 20,36%); rời bỏ – Logistic Regression (AUC 0,810; Cao 793 ·
 Trung bình 484 · Thấp 723); cảm xúc – Từ điển từ khoá (Macro F1 0,582).
 
@@ -46,8 +46,8 @@ Trung bình 484 · Thấp 723); cảm xúc – Từ điển từ khoá (Macro F1
 | 3 | Đọc `params` | Holt-Winters ghi `additive_seasonal` nhưng thực tế chạy không mùa vụ; MAPE = 0 khi không có tháng khác 0 | Ngọc Anh | ✅ Đã sửa |
 | 4 | `python manage.py test` | Test `test_features_stop_before_cutoff…` của module rời bỏ FAIL (kỳ vọng nhãn sai) | Thái Anh | ✅ Đã sửa |
 | 5 | Đối chiếu ranh giới | Đơn đúng 0 giờ ngày cutoff không thuộc đặc trưng lẫn nhãn; trang khách có thể hiện điểm batch `demo` | Thái Anh | ✅ Đã sửa |
-| 6 | Kiểm tra đủ khoá (mục A) | Chế độ **mô phỏng** của module cảm xúc (khi chưa có API key) không ghi `avg_latency_ms` – sai hợp đồng mục 5. Dữ liệu thật hiện tại không bị ảnh hưởng | Tùng | ⏳ Báo Tùng sửa `sentiment.py` (ngoài phạm vi kiểm thử) |
-| 7 | Bảng đối chiếu `05_mcp.md` mục 4.4 | Vẫn ghi số của dữ liệu giả (353 / 926 / 721…) | Tùng | ⏳ Cập nhật bằng số ở mục 6.4 |
+| 6 | Kiểm tra đủ khoá (mục A) | Chế độ **mô phỏng** của module cảm xúc (khi chưa có API key) không ghi `avg_latency_ms` – sai hợp đồng mục 5. Dữ liệu thật hiện tại không bị ảnh hưởng | Tùng | ✅ Đã sửa (`sentiment.py` ghi `avg_latency_ms = 0`, thêm kiểm tra trong test) |
+| 7 | Bảng đối chiếu `05_mcp.md` mục 4.4 | Vẫn ghi số của dữ liệu giả (353 / 926 / 721…) | Tùng | ✅ Đã cập nhật số thật và chụp lại 4 ảnh |
 
 Nội dung đã báo: *Ngọc Anh – SARIMA backtest phân kỳ, metrics tính trên số chưa làm tròn*; *Thái Anh – test nhãn FAIL,
 báo cáo chưa có số*; *Tùng – chế độ mô phỏng cảm xúc thiếu `avg_latency_ms`, mục 4.4 còn số demo*.
@@ -68,7 +68,7 @@ Mỗi biểu đồ: đọc số trên dashboard, chạy câu SQL tương ứng t
 | [Dự báo] Sai số các phương pháp | MAPE 20,36 · 29,44 · 29,79 | `ai.model_run` module forecast | 20,3593 · 29,4439 · 29,7908 | ✅ |
 | [Rời bỏ] 20 khách rủi ro cao nhất | Dòng 1: Khách UK-16446, 100,0% | `ORDER BY probability DESC LIMIT 1` | Khách UK-16446, 0,999996 | ✅ |
 | [Rời bỏ] Rủi ro trung bình theo tháng mua gần nhất | 01/2024 ≈ 93%; 11/2025 ≈ 21% | `AVG(probability)` theo tháng đơn gần nhất | 0,934 · 0,213 | ✅ |
-| [Rời bỏ] So sánh mô hình | AUC 0,810 · 0,782 · 0,768 | `ai.model_run` module churn | 0,8102 · 0,7820 · 0,7677 | ✅ |
+| [Rời bỏ] So sánh mô hình | AUC 0,810 · 0,791 · 0,782 | `ai.model_run` module churn | 0,8102 · 0,7907 · 0,7820 | ✅ |
 | [Cảm xúc] Cảm xúc theo tháng | 11/2025: Tích cực 22 · Trung lập 10 · Tiêu cực 10 | đếm theo tháng × nhãn | 22 · 10 · 10 | ✅ |
 | [Cảm xúc] Cảm xúc theo kênh | Email 244 · Chat 242 · Trực tiếp 60 · Điện thoại 54 | đếm theo `channel` | 244 · 242 · 60 · 54 | ✅ |
 | [Cảm xúc] Độ chính xác: từ điển và Gemini | Macro F1 0,582 · 0,575 | `ai.model_run` module sentiment | 0,5824 · 0,5745 | ✅ |
@@ -102,7 +102,7 @@ Làm lại các bước của `docs/th2/CAI_DAT.md` trên máy nhóm (dữ liệ
 ## 6.7. Cách chạy lại toàn bộ kiểm tra
 
 ```bash
-python manage.py test                       # 161 test, OK ngày 17/10/2026
+python manage.py test                       # 164 test, OK ngày 17/10/2026
 python manage.py run_ai_pipeline            # (nếu cần batch mới)
 python manage.py verify_ai_results          # 40 mục, thoát mã 1 nếu có mục LỆCH
 python manage.py verify_superset_data       # đối chiếu TH1 (view analytics)
