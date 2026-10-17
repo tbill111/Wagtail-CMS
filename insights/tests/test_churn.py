@@ -8,7 +8,7 @@ from django.urls import reverse
 from crm.models import Customer, InteractionLog, Order, OrderItem
 from insights.conf import CHURN_WINDOW_DAYS, risk_band
 from insights.models import ChurnScore, ModelRun
-from insights.pipeline.churn import FEATURES, build_features, build_labeled_data, run
+from insights.pipeline.churn import FEATURES, build_labeled_data, run
 
 VN = ZoneInfo("Asia/Ho_Chi_Minh")
 REFERENCE = date(2025, 12, 31)
@@ -65,9 +65,12 @@ class ChurnLabelAndFeatureTests(ChurnFixtureMixin, TestCase):
         self.assertEqual(list(features.columns), FEATURES)
         self.assertEqual(row["frequency"], 1)
         self.assertEqual(row["monetary"], 10000)
-        self.assertEqual(row["tenure_days"], (cutoff - timedelta(days=1) - date(2025, 1, 10)).days)
+        # đặc trưng tính đến hết ngày cutoff
+        self.assertEqual(row["tenure_days"], (cutoff - date(2025, 1, 10)).days)
         self.assertEqual(row["interactions_count"], 0)
-        self.assertEqual(labels.loc[target.pk], 1)
+        # đơn "Tương lai" (cutoff + 4 ngày) không lọt vào đặc trưng nhưng nằm trong cửa sổ theo dõi
+        # (cutoff, R] → theo định nghĩa khách này Ở LẠI (nhãn 0)
+        self.assertEqual(labels.loc[target.pk], 0)
 
 
 class ChurnPipelineTests(ChurnFixtureMixin, TestCase):
@@ -117,8 +120,18 @@ class ChurnRiskPageTests(TestCase):
 
         self.assertContains(response, "Rủi ro rời bỏ")
         self.assertContains(response, "78% – Cao")
-        self.assertContains(response, "Mô hình Rừng ngẫu nhiên")
+        self.assertContains(response, "Mô hình Random Forest")  # cùng tên với dashboard (ai.method_label)
 
     def test_detail_shows_empty_state_without_a_score(self):
         response = self.client.get(self.url)
         self.assertContains(response, "Chưa có dự đoán")
+
+    def test_detail_prefers_real_batch_over_demo(self):
+        for batch, probability, started in (("demo", 0.1, datetime(2026, 1, 1, tzinfo=VN)),
+                                            ("20251231-000000", 0.78, datetime(2025, 12, 31, tzinfo=VN))):
+            run_row = ModelRun.objects.create(batch=batch, module=ModelRun.Module.CHURN, method="random_forest",
+                                              is_selected=True, status=ModelRun.Status.SUCCESS,
+                                              started_at=started, finished_at=started)
+            ChurnScore.objects.create(run=run_row, customer=self.customer, probability=probability,
+                                      risk_band=risk_band(probability))
+        self.assertContains(self.client.get(self.url), "78% – Cao")

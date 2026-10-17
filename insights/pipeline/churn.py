@@ -1,5 +1,6 @@
 """Customer churn labels, features, evaluation, and scoring (TH2 checklist 02/05/06)."""
 
+import logging
 from datetime import datetime, time, timedelta
 
 import pandas as pd
@@ -24,6 +25,8 @@ from insights.conf import CHURN_WINDOW_DAYS, RANDOM_STATE, reference_date, risk_
 from insights.models import ChurnScore, ModelRun
 
 from .base import MethodResult, run_method, select_best
+
+logger = logging.getLogger("insights")
 
 FEATURES = [
     "recency_days",
@@ -113,10 +116,12 @@ def build_labeled_data(reference=None):
     reference = reference or reference_date()
     cutoff = reference - timedelta(days=CHURN_WINDOW_DAYS)
 
-    # The cutoff is a boundary: training features only include orders strictly before it.
-    feature_frame = build_features(cutoff - timedelta(days=1))
+    # Hợp đồng mục 3/6: đặc trưng chỉ dùng dữ liệu ĐẾN HẾT ngày cutoff; nhãn xét các đơn SAU ngày cutoff đến hết R.
+    # Mỗi đơn thuộc đúng một phía, không có đơn nào rơi vào khoảng trống giữa hai phía.
+    after_cutoff = _local_start(cutoff + timedelta(days=1))
+    feature_frame = build_features(cutoff)
     eligible_ids = set(
-        Order.objects.filter(status=Order.Status.COMPLETED, created_at__lt=_local_start(cutoff))
+        Order.objects.filter(status=Order.Status.COMPLETED, created_at__lt=after_cutoff)
         .values_list("customer_id", flat=True).distinct()
     )
     feature_frame = feature_frame.loc[feature_frame.index.intersection(list(eligible_ids))]
@@ -126,7 +131,7 @@ def build_labeled_data(reference=None):
     retained_ids = set(
         Order.objects.filter(
             status=Order.Status.COMPLETED,
-            created_at__gt=_local_start(cutoff),
+            created_at__gte=after_cutoff,
             created_at__lt=_local_start(reference + timedelta(days=1)),
         ).values_list("customer_id", flat=True).distinct()
     )
@@ -216,7 +221,7 @@ def run(batch):
     if labels.empty:
         raise RuntimeError("Không có khách đủ điều kiện để tạo nhãn rời bỏ.")
     churn_rate = float(labels.mean())
-    print(f"Tỷ lệ churn của tập: {churn_rate:.2%} ({int(labels.sum())}/{len(labels)} khách).")
+    logger.info("Tỷ lệ churn của tập: %.2f%% (%s/%s khách).", churn_rate * 100, int(labels.sum()), len(labels))
     if churn_rate < 0.05 or churn_rate > 0.95:
         raise RuntimeError(
             f"Tỷ lệ rời bỏ {churn_rate:.1%} nằm ngoài khoảng 5%–95%; cần đối chiếu định nghĩa với nhóm TH2."
@@ -242,26 +247,12 @@ def run(batch):
         )
         runs.append(run_method(batch, ModelRun.Module.CHURN, method, func))
     selected = select_best(runs, "auc", higher_is_better=True)
-    print("\nSo sánh phương pháp churn:")
-    print(f"{'Phương pháp':<24} {'Trạng thái':<10} {'AUC':>8} {'Precision':>11} {'Recall':>8} {'F1':>8} {'Accuracy':>10}")
-    for result in runs:
-        metrics = result.metrics
-        values = [metrics.get(key) for key in ("auc", "precision", "recall", "f1", "accuracy")]
-        formatted = [f"{value:.4f}" if value is not None else "—" for value in values]
-        marker = " ★" if result.is_selected else ""
-        print(
-            f"{result.method:<24} {result.status:<10} {formatted[0]:>8} {formatted[1]:>11} "
-            f"{formatted[2]:>8} {formatted[3]:>8} {formatted[4]:>10}{marker}"
-        )
+    # Bảng so sánh do run_ai_pipeline in ra; ở đây chỉ ghi log phân bố mức rủi ro của phương pháp được chọn
     if selected:
         counts = dict(
             selected.churn_scores.values("risk_band").annotate(total=Count("pk"))
             .values_list("risk_band", "total")
         )
-        print(
-            "Số khách theo mức rủi ro (phương pháp được chọn): "
-            f"cao={counts.get('high', 0)}, trung bình={counts.get('medium', 0)}, thấp={counts.get('low', 0)}."
-        )
-    else:
-        print("Không có phương pháp thành công để chọn; chưa có phân bố mức rủi ro.")
+        logger.info("Rời bỏ – chọn %s; số khách cao=%s, trung bình=%s, thấp=%s.", selected.method,
+                    counts.get("high", 0), counts.get("medium", 0), counts.get("low", 0))
     return runs
