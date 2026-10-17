@@ -46,8 +46,8 @@ Trung bình 484 · Thấp 723); cảm xúc – Từ điển từ khoá (Macro F1
 | 3 | Đọc `params` | Holt-Winters ghi `additive_seasonal` nhưng thực tế chạy không mùa vụ; MAPE = 0 khi không có tháng khác 0 | Ngọc Anh | ✅ Đã sửa |
 | 4 | `python manage.py test` | Test `test_features_stop_before_cutoff…` của module rời bỏ FAIL (kỳ vọng nhãn sai) | Thái Anh | ✅ Đã sửa |
 | 5 | Đối chiếu ranh giới | Đơn đúng 0 giờ ngày cutoff không thuộc đặc trưng lẫn nhãn; trang khách có thể hiện điểm batch `demo` | Thái Anh | ✅ Đã sửa |
-| 6 | Kiểm tra đủ khoá (mục A) | Chế độ **mô phỏng** của module cảm xúc (khi chưa có API key) không ghi `avg_latency_ms` – sai hợp đồng mục 5. Dữ liệu thật hiện tại không bị ảnh hưởng | Tùng | ⏳ Báo Tùng sửa `sentiment.py` (ngoài phạm vi kiểm thử) |
-| 7 | Bảng đối chiếu `05_mcp.md` mục 4.4 | Vẫn ghi số của dữ liệu giả (353 / 926 / 721…) | Tùng | ⏳ Cập nhật bằng số ở mục 6.4 |
+| 6 | Kiểm tra đủ khoá (mục A) | Chế độ **mô phỏng** của module cảm xúc (khi chưa có API key) không ghi `avg_latency_ms` – sai hợp đồng mục 5. Dữ liệu thật hiện tại không bị ảnh hưởng | Tùng | ✅ Đã sửa (`sentiment.py` ghi `avg_latency_ms = 0`, thêm kiểm tra trong test) |
+| 7 | Bảng đối chiếu `05_mcp.md` mục 4.4 | Vẫn ghi số của dữ liệu giả (353 / 926 / 721…) | Tùng | ✅ Đã cập nhật số thật và chụp lại 4 ảnh |
 
 Nội dung đã báo: *Ngọc Anh – SARIMA backtest phân kỳ, metrics tính trên số chưa làm tròn*; *Thái Anh – test nhãn FAIL,
 báo cáo chưa có số*; *Tùng – chế độ mô phỏng cảm xúc thiếu `avg_latency_ms`, mục 4.4 còn số demo*.

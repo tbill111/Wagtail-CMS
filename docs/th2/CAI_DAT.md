@@ -24,7 +24,8 @@ pip install -r requirements.txt
 ```powershell
 Copy-Item .env.example .env
 ```
-Mở `.env` và điền (hỏi Tùng các mật khẩu dùng chung, **không gửi file `.env` qua Zalo/GitHub**):
+Mở `.env` và điền. Mỗi máy **tự đặt mật khẩu riêng** (Docker, PostgreSQL, Superset đều chạy trên máy mình, không có mật
+khẩu nào phải dùng chung); **không gửi file `.env` qua Zalo/GitHub**:
 
 | Biến | Giá trị |
 |---|---|
@@ -97,14 +98,20 @@ python superset/bootstrap_th2.py
 Lần đầu script tạo **khung** dashboard (tab Tổng quan, gồm các biểu đồ tên bắt đầu bằng `[Tổng quan]` nếu đã có);
 chạy lại không đụng vào bố cục dashboard.
 
-## 8. Chạy mô hình AI (khi các module đã gộp)
+## 8. Chạy mô hình AI, kiểm tra và dashboard
 
 ```powershell
-python manage.py run_ai_pipeline                        # tất cả module
-python manage.py run_ai_pipeline --only forecast        # chỉ một module
+python manage.py run_ai_pipeline                        # tất cả module (cảm xúc gọi AI: vài phút)
+python manage.py run_ai_pipeline --only forecast churn  # chỉ một số module
+python manage.py verify_ai_results                      # đối chiếu kết quả – phải "Tất cả … mục KHỚP"
 python manage.py test                                   # toàn bộ test phải OK
 ```
-View `ai.*` tự lấy batch mới nhất, không cần chạy lại file 03.
+View `ai.*` tự lấy batch mới nhất, không cần chạy lại file 03. **Đúng khi:** `verify_ai_results` in
+"Tất cả 40 mục KHỚP" (có `GEMINI_API_KEY`; không có key thì module cảm xúc chạy chế độ mô phỏng).
+
+Dashboard: tab **Tổng quan** (4 biểu đồ `[Tổng quan] …`) do bước 7 tạo. Ba tab **Dự báo · Rời bỏ · Cảm xúc** dựng qua
+Superset MCP theo `docs/th2/prompts/04_hoang_anh_dashboard.md` (danh sách biểu đồ và cách kiểm tra số liệu), hoặc
+**Import** file xuất dashboard của nhóm trong Superset → Dashboards → Import.
 
 ## 9. Chạy web SmartCRM
 
@@ -123,3 +130,7 @@ http://127.0.0.1:8000/crm/analytics/ (tab **AI Insights** là dashboard TH2 nhú
 | `No such file` với `/sql/...` trong Git Bash | `export MSYS_NO_PATHCONV=1` |
 | `relation "ai.model_run" does not exist` | chưa chạy file 03 (bước 6) |
 | Superset không thấy kết nối TH2 | chạy lại bước 7; kiểm tra `SUPERSET_RO_PASSWORD` giống lúc chạy file 02 |
+| Django báo `connection timeout expired` | Docker Desktop chưa chạy (thường sau khi khởi động lại máy) – mở Docker, chờ `docker ps` thấy `smartcrm-db-1 (healthy)` |
+| Sửa code xong trình duyệt vẫn thấy giao diện cũ | còn tiến trình `runserver` cũ giữ cổng 8000 – tắt hết rồi chạy lại |
+| `verify_ai_results` báo "Chỉ có dữ liệu giả" | chưa chạy `run_ai_pipeline` cho module đó (bước 8) |
+| Biểu đồ Superset báo *Custom SQL fields cannot contain sub-queries* | Superset chặn truy vấn con trong bộ lọc tự viết – dùng metric tổng hợp, ví dụ `(ARRAY_AGG(forecast ORDER BY month))[1]` |

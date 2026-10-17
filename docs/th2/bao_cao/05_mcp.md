@@ -54,24 +54,27 @@ tiếng Việt cho Claude** được làm trực tiếp khi quay video (mục 4.
 
 | Id | Tên biểu đồ | Dataset | Loại | Cấu hình chính |
 |---|---|---|---|---|
-
 | 82 | [Tổng quan] Độ chính xác các mô hình | `ai.model_run` | Bảng | cột Bài toán, Phương pháp, Được chọn, MAPE, AUC, Macro F1, Số mẫu kiểm tra |
 | 83 | [Tổng quan] Doanh thu thực tế và dự báo | `ai.revenue_forecast` | Đường | trục tháng; metric `doanh_thu_thuc_te`, `doanh_thu_du_bao`; lọc `is_selected` |
 | 84 | [Tổng quan] Số khách theo mức rủi ro rời bỏ | `ai.churn_score` | Cột | trục `risk_label`; metric `so_khach`; lọc `is_selected` |
 | 85 | [Tổng quan] Tỉ lệ cảm xúc | `ai.interaction_sentiment` | Tròn | nhóm `label_pred`; metric `so_cau`; lọc `is_selected` |
 
-Đối chiếu bằng `superset_sqllab_execute_query` (trên dữ liệu **giả** của `seed_ai_demo`, chạy lại khi có kết quả thật):
+Đối chiếu bằng `superset_sqllab_execute_query` trên **kết quả mô hình thật** (dự báo, rời bỏ: batch
+`20261017-072049`; cảm xúc: batch `20261014-215419`). Lần đối chiếu đầu (14/10) trên dữ liệu giả `seed_ai_demo` cũng khớp.
 
 | Biểu đồ | Số trên biểu đồ | Truy vấn đối chiếu | Kết quả SQL | Khớp |
 |---|---|---|---|---|
+| 82 | MAPE 20,36 · AUC 0,810 · Macro F1 0,582 (phương pháp được chọn) | `ai.model_run WHERE is_selected` | 20,3593 · 0,8102 · 0,5824 | ✅ |
 | 83 | Doanh thu thực tế 11/2025 ≈ 11,9 tỷ | `SUM(actual)` tháng 2025-11 | 11.857.490.700 | ✅ |
-| 84 | Cao / Trung bình / Thấp | `COUNT(*)` theo `risk_label` | 353 / 926 / 721 | ✅ |
-| 85 | Tiêu cực / Trung lập / Tích cực | `COUNT(*)` theo `label_pred` | 791 / 529 / 1.680 | ✅ |
+| 84 | Cao / Trung bình / Thấp | `COUNT(*)` theo `risk_label` | 793 / 484 / 723 | ✅ |
+| 85 | Tích cực / Trung lập / Tiêu cực | `COUNT(*)` theo `label_pred` | 326 / 149 / 125 | ✅ |
 
-![Độ chính xác các mô hình](img/mcp_tong_quan_do_chinh_xac_demo.png)
-![Doanh thu thực tế và dự báo](img/mcp_tong_quan_doanh_thu_demo.png)
+![Độ chính xác các mô hình](img/mcp_tong_quan_do_chinh_xac.png)
+![Doanh thu thực tế và dự báo](img/mcp_tong_quan_doanh_thu.png)
+![Số khách theo mức rủi ro rời bỏ](img/mcp_tong_quan_rui_ro.png)
+![Tỉ lệ cảm xúc](img/mcp_tong_quan_cam_xuc.png)
 
-*(Ảnh trên dùng dữ liệu giả `seed_ai_demo`. Chụp lại sau khi có kết quả mô hình thật.)*
+*(Ảnh chụp 17/10/2026 trên dữ liệu thật. Ảnh cũ trên dữ liệu giả giữ ở `img/mcp_tong_quan_*_demo.png` để so sánh.)*
 
 ## 4.5. Phần của Hoàng Anh
 

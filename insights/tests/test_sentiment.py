@@ -103,3 +103,4 @@ class SentimentModuleTests(TestCase):
         self.assertTrue(runs[1].notes.startswith("[mô phỏng]"))
         self.assertFalse(runs[1].is_selected)
         self.assertTrue(runs[0].is_selected)
+        self.assertIn("avg_latency_ms", runs[1].metrics)  # đủ khoá metrics theo hợp đồng mục 5

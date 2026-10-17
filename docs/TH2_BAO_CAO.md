@@ -197,6 +197,14 @@ cho từng nhân viên đã đăng nhập; danh sách tab đặt trong `SUPERSET
 
 ![Trang Phân tích – tab AI Insights](th2/bao_cao/img/smartcrm_ai_insights_nhung.png)
 
+Ngoài dashboard, kết quả AI còn đi thẳng vào thao tác hằng ngày của nhân viên:
+- Trang **chi tiết khách** (`/crm/customers/<id>/`) có dòng **Rủi ro rời bỏ** – ví dụ "100% – Cao · Mô hình Logistic
+  Regression · cập nhật 17/10/2026" – đọc từ `ChurnScore` của phương pháp được chọn trong batch rời bỏ mới nhất, ưu tiên
+  batch thật hơn batch `demo` (`insights/display.py`, 1 truy vấn). Khách chưa có điểm hiện "Chưa có dự đoán".
+- Admin có menu **Kết quả AI** (chỉ xem) cho từng lần chạy mô hình: chỉ số, tham số, ghi chú.
+
+![Dòng Rủi ro rời bỏ trên trang khách](th2/bao_cao/img/smartcrm_khach_rui_ro_cao.png)
+
 ## 3. Mô hình AI (checklist 02, 06)
 
 Ba bài toán, mỗi bài so sánh nhiều phương pháp trên cùng tập kiểm tra; số liệu lấy từ `ai.model_run` của batch ghi ở đầu mỗi mục.
@@ -535,24 +543,27 @@ tiếng Việt cho Claude** được làm trực tiếp khi quay video (mục 4.
 
 | Id | Tên biểu đồ | Dataset | Loại | Cấu hình chính |
 |---|---|---|---|---|
-
 | 82 | [Tổng quan] Độ chính xác các mô hình | `ai.model_run` | Bảng | cột Bài toán, Phương pháp, Được chọn, MAPE, AUC, Macro F1, Số mẫu kiểm tra |
 | 83 | [Tổng quan] Doanh thu thực tế và dự báo | `ai.revenue_forecast` | Đường | trục tháng; metric `doanh_thu_thuc_te`, `doanh_thu_du_bao`; lọc `is_selected` |
 | 84 | [Tổng quan] Số khách theo mức rủi ro rời bỏ | `ai.churn_score` | Cột | trục `risk_label`; metric `so_khach`; lọc `is_selected` |
 | 85 | [Tổng quan] Tỉ lệ cảm xúc | `ai.interaction_sentiment` | Tròn | nhóm `label_pred`; metric `so_cau`; lọc `is_selected` |
 
-Đối chiếu bằng `superset_sqllab_execute_query` (trên dữ liệu **giả** của `seed_ai_demo`, chạy lại khi có kết quả thật):
+Đối chiếu bằng `superset_sqllab_execute_query` trên **kết quả mô hình thật** (dự báo, rời bỏ: batch
+`20261017-072049`; cảm xúc: batch `20261014-215419`). Lần đối chiếu đầu (14/10) trên dữ liệu giả `seed_ai_demo` cũng khớp.
 
 | Biểu đồ | Số trên biểu đồ | Truy vấn đối chiếu | Kết quả SQL | Khớp |
 |---|---|---|---|---|
+| 82 | MAPE 20,36 · AUC 0,810 · Macro F1 0,582 (phương pháp được chọn) | `ai.model_run WHERE is_selected` | 20,3593 · 0,8102 · 0,5824 | ✅ |
 | 83 | Doanh thu thực tế 11/2025 ≈ 11,9 tỷ | `SUM(actual)` tháng 2025-11 | 11.857.490.700 | ✅ |
-| 84 | Cao / Trung bình / Thấp | `COUNT(*)` theo `risk_label` | 353 / 926 / 721 | ✅ |
-| 85 | Tiêu cực / Trung lập / Tích cực | `COUNT(*)` theo `label_pred` | 791 / 529 / 1.680 | ✅ |
+| 84 | Cao / Trung bình / Thấp | `COUNT(*)` theo `risk_label` | 793 / 484 / 723 | ✅ |
+| 85 | Tích cực / Trung lập / Tiêu cực | `COUNT(*)` theo `label_pred` | 326 / 149 / 125 | ✅ |
 
-![Độ chính xác các mô hình](th2/bao_cao/img/mcp_tong_quan_do_chinh_xac_demo.png)
-![Doanh thu thực tế và dự báo](th2/bao_cao/img/mcp_tong_quan_doanh_thu_demo.png)
+![Độ chính xác các mô hình](th2/bao_cao/img/mcp_tong_quan_do_chinh_xac.png)
+![Doanh thu thực tế và dự báo](th2/bao_cao/img/mcp_tong_quan_doanh_thu.png)
+![Số khách theo mức rủi ro rời bỏ](th2/bao_cao/img/mcp_tong_quan_rui_ro.png)
+![Tỉ lệ cảm xúc](th2/bao_cao/img/mcp_tong_quan_cam_xuc.png)
 
-*(Ảnh trên dùng dữ liệu giả `seed_ai_demo`. Chụp lại sau khi có kết quả mô hình thật.)*
+*(Ảnh chụp 17/10/2026 trên dữ liệu thật. Ảnh cũ trên dữ liệu giả giữ ở `img/mcp_tong_quan_*_demo.png` để so sánh.)*
 
 ### 4.5. Phần của Hoàng Anh
 
@@ -622,8 +633,8 @@ Trung bình 484 · Thấp 723); cảm xúc – Từ điển từ khoá (Macro F1
 | 3 | Đọc `params` | Holt-Winters ghi `additive_seasonal` nhưng thực tế chạy không mùa vụ; MAPE = 0 khi không có tháng khác 0 | Ngọc Anh | ✅ Đã sửa |
 | 4 | `python manage.py test` | Test `test_features_stop_before_cutoff…` của module rời bỏ FAIL (kỳ vọng nhãn sai) | Thái Anh | ✅ Đã sửa |
 | 5 | Đối chiếu ranh giới | Đơn đúng 0 giờ ngày cutoff không thuộc đặc trưng lẫn nhãn; trang khách có thể hiện điểm batch `demo` | Thái Anh | ✅ Đã sửa |
-| 6 | Kiểm tra đủ khoá (mục A) | Chế độ **mô phỏng** của module cảm xúc (khi chưa có API key) không ghi `avg_latency_ms` – sai hợp đồng mục 5. Dữ liệu thật hiện tại không bị ảnh hưởng | Tùng | ⏳ Báo Tùng sửa `sentiment.py` (ngoài phạm vi kiểm thử) |
-| 7 | Bảng đối chiếu `05_mcp.md` mục 4.4 | Vẫn ghi số của dữ liệu giả (353 / 926 / 721…) | Tùng | ⏳ Cập nhật bằng số ở mục 6.4 |
+| 6 | Kiểm tra đủ khoá (mục A) | Chế độ **mô phỏng** của module cảm xúc (khi chưa có API key) không ghi `avg_latency_ms` – sai hợp đồng mục 5. Dữ liệu thật hiện tại không bị ảnh hưởng | Tùng | ✅ Đã sửa (`sentiment.py` ghi `avg_latency_ms = 0`, thêm kiểm tra trong test) |
+| 7 | Bảng đối chiếu `05_mcp.md` mục 4.4 | Vẫn ghi số của dữ liệu giả (353 / 926 / 721…) | Tùng | ✅ Đã cập nhật số thật và chụp lại 4 ảnh |
 
 Nội dung đã báo: *Ngọc Anh – SARIMA backtest phân kỳ, metrics tính trên số chưa làm tròn*; *Thái Anh – test nhãn FAIL,
 báo cáo chưa có số*; *Tùng – chế độ mô phỏng cảm xúc thiếu `avg_latency_ms`, mục 4.4 còn số demo*.
@@ -707,7 +718,17 @@ khác nhau**, cộng thêm 2 tính năng LLM có sẵn trong SmartCRM:
 | | *Có sẵn trong SmartCRM:* báo cáo nhận định | Tóm tắt tình hình kinh doanh | Dùng tại trang Báo cáo AI |
 
 Mỗi bài toán có **một phương pháp đơn giản làm mốc** và đánh giá trên **cùng tập kiểm tra**, nên chênh lệch giữa các phương
-pháp là so sánh công bằng (mục 3).
+pháp là so sánh công bằng (mục 3). Kết quả so sánh thực tế (dự báo, rời bỏ: batch `20261017-072049`; cảm xúc:
+`20261014-215419`):
+
+| Bài toán | Phương pháp được chọn | Chỉ số | Nhận xét |
+|---|---|---|---|
+| Dự báo doanh thu | **Cùng kỳ năm trước** (luật) | MAPE 20,4% (SARIMA 29,4%, Holt-Winters 29,8%) | Chuỗi 24 tháng quá ngắn để mô hình thống kê học mùa vụ – mốc đơn giản thắng |
+| Khách rời bỏ | **Logistic Regression** (học máy) | AUC 0,810 (Random Forest 0,782, Luật RFM 0,768) | Học máy hơn luật RFM không nhiều – tín hiệu chính là thời gian từ lần mua cuối |
+| Cảm xúc | **Từ điển từ khoá** (luật) | Macro F1 0,582 (LLM 0,575) | LLM bắt câu tiêu cực tốt hơn hẳn (129/144 = 89,6% so với 82/144 = 56,9%) – cơ sở của đề xuất #6 |
+
+Bài học chung: **phương pháp phức tạp chỉ đáng dùng khi thắng được mốc đơn giản trên cùng tập kiểm tra** – nhóm giữ
+nguyên nguyên tắc chọn theo chỉ số, kể cả khi mốc đơn giản thắng.
 
 ### 7.2. Đề xuất mở rộng (chưa triển khai)
 
@@ -786,5 +807,3 @@ dùng MCP chính thức, tách tài khoản ứng dụng PostgreSQL và bật SS
 | Mục | Còn thiếu | Người làm |
 |---|---|---|
 | 4.5, 5 | Câu lệnh MCP dựng 12 biểu đồ 3 tab; `06_dashboard.md`; file xuất dashboard; ảnh 4 tab | Hoàng Anh |
-| 4.4 | Thay số dữ liệu giả bằng số thật (mục 6.4); chụp lại ảnh tab Tổng quan | Tùng |
-| 3.3 | Chế độ mô phỏng của module cảm xúc ghi thiếu `avg_latency_ms` (mục 6.3 #6) | Tùng |
