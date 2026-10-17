@@ -8,7 +8,7 @@ rồi so với kết quả mô hình đã lưu; (3) đối chiếu từng biểu
 
 ## 6.1. Test tự động
 
-`python manage.py test` – **161 test, tất cả qua** (17/10/2026).
+`python manage.py test` – **164 test, tất cả qua** (17/10/2026).
 
 | File | Kiểm tra gì |
 |---|---|
@@ -102,7 +102,7 @@ Làm lại các bước của `docs/th2/CAI_DAT.md` trên máy nhóm (dữ liệ
 ## 6.7. Cách chạy lại toàn bộ kiểm tra
 
 ```bash
-python manage.py test                       # 161 test, OK ngày 17/10/2026
+python manage.py test                       # 164 test, OK ngày 17/10/2026
 python manage.py run_ai_pipeline            # (nếu cần batch mới)
 python manage.py verify_ai_results          # 40 mục, thoát mã 1 nếu có mục LỆCH
 python manage.py verify_superset_data       # đối chiếu TH1 (view analytics)

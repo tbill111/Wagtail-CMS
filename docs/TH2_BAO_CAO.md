@@ -42,7 +42,7 @@ quả AI trở lại SmartCRM (dashboard nhúng + điểm rủi ro trên trang k
 | Cảm xúc | Chọn *Từ điển từ khoá* – Macro F1 0,582; LLM bắt câu tiêu cực 89,6% |
 | Superset MCP | 16 biểu đồ tạo qua MCP bằng tài khoản `mcp_agent` (không ghi được dữ liệu, không thấy CSDL TH1) |
 | Dashboard | 4 tab, 16 biểu đồ, 3 bộ lọc, nhúng tại `/crm/analytics/?tab=ai`; 15/15 biểu đồ khớp SQL |
-| Kiểm thử | 161 test tự động qua; `verify_ai_results` 40/40 mục khớp |
+| Kiểm thử | 164 test tự động qua; `verify_ai_results` 40/40 mục khớp |
 
 **Thành viên và phân công.**
 
@@ -738,7 +738,7 @@ rồi so với kết quả mô hình đã lưu; (3) đối chiếu từng biểu
 
 ### 6.1. Test tự động
 
-`python manage.py test` – **161 test, tất cả qua** (17/10/2026).
+`python manage.py test` – **164 test, tất cả qua** (17/10/2026).
 
 | File | Kiểm tra gì |
 |---|---|
@@ -832,7 +832,7 @@ Làm lại các bước của `docs/th2/CAI_DAT.md` trên máy nhóm (dữ liệ
 ### 6.7. Cách chạy lại toàn bộ kiểm tra
 
 ```bash
-python manage.py test                       # 161 test, OK ngày 17/10/2026
+python manage.py test                       # 164 test, OK ngày 17/10/2026
 python manage.py run_ai_pipeline            # (nếu cần batch mới)
 python manage.py verify_ai_results          # 40 mục, thoát mã 1 nếu có mục LỆCH
 python manage.py verify_superset_data       # đối chiếu TH1 (view analytics)
@@ -943,11 +943,11 @@ dùng MCP chính thức, tách tài khoản ứng dụng PostgreSQL và bật SS
 | 02 | Xây dựng mô hình AI phân tích dữ liệu | 3 bài toán × 2–3 phương pháp, chạy bằng `run_ai_pipeline`, chọn phương pháp tốt nhất tự động, lưu `ModelRun` + kết quả từng dòng | Mục 3; `insights/pipeline/forecast.py`, `churn.py`, `sentiment.py`; Admin → *Kết quả AI* | Ngọc Anh, Thái Anh, Tùng |
 | 03 | Kết nối Superset MCP, AI tạo biểu đồ | `aptro/superset-mcp` nối Claude Code; tài khoản `mcp_agent` quyền hạn chế (chặn DML, chặn CSDL TH1); 16 biểu đồ tạo/sửa qua `superset_chart_create`/`update`; đối chiếu qua `superset_sqllab_execute_query` | Mục 4; `docs/th2/CAI_DAT_MCP.md`; `th2/bao_cao/img/mcp_*.png` | Tùng, Hoàng Anh |
 | 04 | Đưa kết quả AI lên dashboard | Dashboard "SmartCRM – AI Insights" 4 tab, 16 biểu đồ, 3 bộ lọc, nhúng trong SmartCRM; khối *Rủi ro rời bỏ* trên trang khách | Mục 5, 6.4, 6.5; `superset/layout_th2.py`; `docs/th2/dashboard/smartcrm_ai_insights_export.zip`; `th2/dashboard/img/tab_*.png`; `crm/templates/crm/_churn_risk.html` | Hoàng Anh, Thái Anh, Tùng |
-| 05 | Báo cáo kỹ thuật và đánh giá mô hình | Mỗi mô hình viết theo khung 8 phần (bài toán, dữ liệu, phương pháp, đánh giá, kết quả có mã batch, kết luận, hạn chế, chạy lại); 161 test; `verify_ai_results` 40/40; đối chiếu 15/15 biểu đồ | Mục 3, 6; file này; `insights/tests/`; `insights/management/commands/verify_ai_results.py` | Hoàng Hưng + cả nhóm |
+| 05 | Báo cáo kỹ thuật và đánh giá mô hình | Mỗi mô hình viết theo khung 8 phần (bài toán, dữ liệu, phương pháp, đánh giá, kết quả có mã batch, kết luận, hạn chế, chạy lại); 164 test; `verify_ai_results` 40/40; đối chiếu 15/15 biểu đồ | Mục 3, 6; file này; `insights/tests/`; `insights/management/commands/verify_ai_results.py` | Hoàng Hưng + cả nhóm |
 | 06 | Đề xuất các mô hình AI khác (cộng điểm) | 8 phương pháp thuộc 4 họ đã triển khai và so sánh; 7 đề xuất mở rộng có mục đích, dữ liệu, cách đánh giá, độ khó, thứ tự ưu tiên | Mục 7 | Tùng (+ Ngọc Anh, Thái Anh) |
 
 ## Phụ lục B. Trạng thái hoàn thành
 
 Cả 6 mục checklist đã có sản phẩm và bằng chứng trong repo (Phụ lục A); không còn mục nào chờ. Kiểm tra cuối:
-`python manage.py test` – 161 test OK; `python manage.py verify_ai_results` – 40/40 mục KHỚP; dashboard 4 tab hiển thị
+`python manage.py test` – 164 test OK; `python manage.py verify_ai_results` – 40/40 mục KHỚP; dashboard 4 tab hiển thị
 không lỗi, 15/15 biểu đồ khớp SQL. Việc còn lại ngoài repo: quay video theo `docs/th2/KICH_BAN_VIDEO_TH2.md`.
