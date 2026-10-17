@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import datetime
 from unittest import mock
 from zoneinfo import ZoneInfo
 
@@ -6,7 +6,7 @@ import pandas as pd
 from django.test import TestCase
 
 from crm.models import Customer, Order, OrderItem
-from insights.models import ModelRun, RevenueForecast
+from insights.models import ModelRun
 from insights.pipeline import forecast
 
 
@@ -60,3 +60,45 @@ class ForecastModuleTests(TestCase):
             result = helper()
         self.assertEqual(result.tolist(), [100, 0, 300])
         self.assertEqual(list(result.index), list(pd.date_range("2025-01-01", "2025-03-01", freq="MS")))
+
+
+class ForecastReviewFixTests(TestCase):
+    """Các lỗi phát hiện khi review: metrics khớp dòng đã lưu, chặn SARIMA phân kỳ, MAPE không có tháng khác 0."""
+
+    def _series(self, months):
+        index = pd.date_range("2023-01-01", periods=months, freq="MS")
+        values = [1_000_003 + (month % 12) * 250_007 + month * 1_111 for month in range(months)]
+        return pd.Series(values, index=index, dtype="int64", name="revenue")
+
+    def test_metrics_recomputable_from_saved_backtest_rows(self):
+        with mock.patch.object(forecast, "monthly_revenue_series", return_value=self._series(30)):
+            runs = forecast.run("forecast-recompute")
+        for run in runs:
+            rows = list(run.forecasts.filter(kind="backtest").order_by("month"))
+            mae = sum(abs(float(row.actual - row.forecast)) for row in rows) / len(rows)
+            self.assertAlmostEqual(mae, run.metrics["mae"], places=3, msg=run.method)
+
+    def test_diverging_sarima_is_rejected_and_noted(self):
+        class Exploding:
+            def fit(self, disp=False):
+                return self
+
+            def get_forecast(self, horizon):
+                values = pd.Series([10.0 ** (12 + step) for step in range(horizon)])
+                return mock.Mock(predicted_mean=values,
+                                 conf_int=lambda alpha: pd.DataFrame({"lo": values * 0.9, "hi": values * 1.1}))
+
+        with mock.patch.object(forecast, "SARIMAX", return_value=Exploding()):
+            prediction = forecast._sarima(self._series(30), 6, "backtest")
+        self.assertIn("phân kỳ", " ".join(prediction.notes))
+        self.assertLessEqual(max(prediction.values), 3 * self._series(30).max())
+
+    def test_mape_is_none_when_all_actual_months_are_zero(self):
+        self.assertIsNone(forecast._metrics([0, 0], [10, 20], 5)["mape"])
+
+    def test_holt_winters_params_match_model_actually_used(self):
+        short = forecast._holt_winters(self._series(18), 6, "backtest")
+        self.assertEqual(short.params["model"], "additive_nonseasonal")
+        self.assertIn("không dùng được mùa vụ", " ".join(short.notes))
+        full = forecast._holt_winters(self._series(30), 6, "dự báo tới")
+        self.assertEqual(full.params["model"], "additive_seasonal")
